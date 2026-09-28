@@ -1,0 +1,1755 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>图像测量工具 · Camera Measure</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1d212b; --line:#2a303c;
+    --txt:#e6e9ef; --muted:#9aa4b2; --accent:#4c9aff; --accent2:#38d39f;
+    --danger:#ff5c68; --warn:#ffc857;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:-apple-system,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;background:var(--bg);color:var(--txt);overflow:hidden}
+  /* 100dvh 规避移动 Safari 地址栏导致的视口跳动；不支持时回退到 100vh */
+  #app{display:flex;flex-direction:column;height:100vh;height:100dvh}
+
+  header,.toolbar2{display:flex;align-items:center;gap:6px;padding:7px 12px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+  header{position:relative;z-index:20}
+  .toolbar2{background:var(--panel2);padding:6px 12px;position:relative;z-index:10}
+  header .title{font-weight:600;font-size:15px;margin-right:6px;letter-spacing:.3px}
+  header .title span{color:var(--accent)}
+  .sep{width:1px;height:20px;background:var(--line);margin:0 3px}
+  button.tool{background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:7px;padding:6px 10px;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;transition:.12s;white-space:nowrap}
+  .toolbar2 button.tool{background:#161a22}
+  button.tool:hover{border-color:var(--accent);color:#fff}
+  button.tool.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.tool.g2{border-color:#33507a}
+  button.tool.tg.active{background:var(--accent2);border-color:var(--accent2);color:#04120c}
+  button.tool.danger:hover{border-color:var(--danger);color:var(--danger)}
+  button.tool:disabled{opacity:.4;cursor:not-allowed}
+  .ic{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none;vertical-align:middle}
+  .toolbar2 button.tool[data-tip]{position:relative;padding:6px 9px}
+  .toolbar2 button.tool[data-tip] .ic{width:17px;height:17px}
+  .toolbar2 button.tool[data-tip]::after{content:attr(data-tip);position:absolute;left:50%;top:calc(100% + 7px);transform:translateX(-50%);background:rgba(29,33,43,.97);border:1px solid var(--line);color:var(--txt);font-size:12px;padding:3px 9px;border-radius:6px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .1s;z-index:40;box-shadow:0 3px 10px rgba(0,0,0,.4)}
+  .toolbar2 button.tool[data-tip]:hover::after{opacity:1}
+  /* header icon-only buttons with hover tooltip */
+  header .tool.ico{position:relative;padding:6px 9px}
+  header .tool.ico .bi{font-size:15px;line-height:1;display:inline-flex}
+  header .tool.ico .bl{display:none}
+  header .menubtn{padding:6px 8px}
+  header .menubtn .mlabel{display:none}
+  header .tool[data-tip]::after{content:attr(data-tip);position:absolute;left:50%;top:calc(100% + 7px);transform:translateX(-50%);background:rgba(29,33,43,.97);border:1px solid var(--line);color:var(--txt);font-size:12px;padding:3px 9px;border-radius:6px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .1s;z-index:60;box-shadow:0 3px 10px rgba(0,0,0,.4)}
+  header .tool[data-tip]:hover::after{opacity:1}
+  html[data-theme="light"] header .tool[data-tip]::after{background:rgba(255,255,255,.97);box-shadow:0 3px 10px rgba(0,0,0,.15)}
+  .spacer{flex:1}
+  .grp{font-size:11px;color:var(--muted);margin:0 2px 0 4px}
+
+  main{flex:1;display:flex;min-height:0;position:relative}
+  #stage{flex:1;position:relative;background:
+    linear-gradient(45deg,#12141a 25%,transparent 25%),
+    linear-gradient(-45deg,#12141a 25%,transparent 25%),
+    linear-gradient(45deg,transparent 75%,#12141a 75%),
+    linear-gradient(-45deg,transparent 75%,#12141a 75%);
+    background-size:22px 22px;background-position:0 0,0 11px,11px -11px,-11px 0px;overflow:hidden}
+  #canvas{position:absolute;top:0;left:0}
+  #loupe{position:absolute;width:152px;height:152px;border-radius:50%;border:2px solid #fff;box-shadow:0 4px 18px rgba(0,0,0,.6);pointer-events:none;display:none;z-index:20;background:#000}
+  #hint{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:var(--muted);text-align:center;pointer-events:none;font-size:14px;line-height:1.9}
+  #hint b{color:var(--txt)}
+  #toolhint{position:absolute;left:50%;top:12px;transform:translateX(-50%);background:rgba(29,33,43,.9);border:1px solid var(--line);border-radius:20px;padding:5px 14px;font-size:12.5px;color:var(--txt);pointer-events:none;display:none}
+  #toolhint b{color:var(--accent2)}
+  #statusbar{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(10px + env(safe-area-inset-bottom,0px));background:rgba(15,17,21,.82);border:1px solid var(--line);border-radius:7px;padding:6px 10px;font-size:12px;color:var(--muted);pointer-events:none;font-variant-numeric:tabular-nums}
+  #statusbar .k{color:var(--accent2)}
+
+  aside{width:236px;background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0;position:relative}
+  #asideResize{position:absolute;left:-6px;top:0;bottom:0;width:14px;cursor:ew-resize;z-index:10;touch-action:none;display:flex;align-items:center;justify-content:center}
+  #asideResize::before{content:"";width:5px;height:32px;border-left:2px solid var(--muted);border-right:2px solid var(--muted);border-radius:1px;opacity:.55;transition:.12s}
+  #asideResize:hover::before,#asideResize.dragging::before{border-color:var(--accent);opacity:1;height:52px}
+  .scalebox{padding:11px 14px;border-bottom:1px solid var(--line);font-size:13px}
+  .scalebox .row{display:flex;justify-content:space-between;align-items:center;margin:4px 0}
+  .scalebox .row>span:first-child{white-space:nowrap}
+  .lockbtn{border:1px solid var(--line);background:var(--panel2);color:var(--txt);border-radius:6px;padding:3px 9px;font-size:12px;cursor:pointer;white-space:nowrap;font-weight:600}
+  .lockbtn.locked{border-color:var(--danger);color:var(--danger)}
+  .lockbtn.unlocked{border-color:var(--accent2);color:var(--accent2)}
+  .lockbtn:hover{filter:brightness(1.15)}
+  #btnCalib.disabled{opacity:.45}
+  .scalebox .val{color:var(--accent2);font-variant-numeric:tabular-nums}
+  .stylebox .wctl .val{min-width:34px;text-align:right;display:inline-block}
+  .scalebox .noscale{color:var(--warn)}
+  .anglebox{padding:0;font-size:13px}
+  .anglebox>summary{padding:11px 14px;cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;user-select:none}
+  .anglebox>summary::-webkit-details-marker{display:none}
+  .anglebox>summary::after{content:"⌄";color:var(--muted);transition:transform .2s}
+  .anglebox[open]>summary::after{transform:rotate(180deg)}
+  .anglebox .amini{color:var(--muted);font-weight:400;font-size:11px}
+  .agrid{display:flex;flex-direction:column;gap:7px;padding:2px 14px 12px}
+  .agrid .arow{display:flex;align-items:center;gap:8px}
+  .agrid .arow .asl{flex:1;min-width:0;height:16px;cursor:pointer;accent-color:var(--accent)}
+  .agrid .ain{width:52px;flex:none;background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:5px 6px;font-size:12px;text-align:center}
+  .agrid .ain:focus{outline:none;border-color:var(--accent)}
+  .side-h{padding:10px 14px;border-bottom:1px solid var(--line);font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:space-between}
+  .mlist{flex:1;overflow-y:auto;padding:6px}
+  .mitem{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:6px 4px;font-size:13px;display:flex;flex-direction:column;gap:4px;cursor:pointer;transition:.12s}
+  .mitem:hover{border-color:#33507a}
+  .mitem.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+  .mitem .top{display:flex;align-items:center;justify-content:space-between;gap:6px}
+  .mitem .name{display:flex;align-items:center;gap:7px;min-width:0;flex:1}
+  .swatch{width:11px;height:11px;border-radius:3px;flex:none}
+  .mitem .lbl{background:transparent;border:none;color:var(--txt);font-size:13px;font-weight:600;padding:2px 4px;border-radius:4px;width:100%;min-width:0}
+  .mitem .lbl:focus{outline:none;background:#0f1115}
+  .badge{font-size:10.5px;color:var(--muted);border:1px solid var(--line);border-radius:20px;padding:1px 7px;flex:none}
+  .mitem .len{font-variant-numeric:tabular-nums;color:var(--accent2);font-weight:600;font-size:13.5px}
+  .mitem .det{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .mitem .del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:0 3px;line-height:1;flex:none}
+  .mitem .del:hover{color:var(--danger)}
+  .stylebox .wctl{display:flex;align-items:center;gap:8px}
+  .stylebox input[type=range]{width:120px;accent-color:var(--accent)}
+  .wsrow{display:flex;align-items:center;gap:8px;padding:1px 0 3px}
+  .wsrow input[type=range]{flex:1;min-width:0;width:auto;accent-color:var(--accent)}
+  .wbox{width:52px;flex:none;background:var(--panel);border:1px solid var(--line);color:var(--txt);border-radius:5px;padding:3px 4px;font-size:12px;text-align:center;font-variant-numeric:tabular-nums}
+  .wbox:focus{outline:none;border-color:var(--accent)}
+  input.cin{width:34px;height:22px;padding:0;border:1px solid var(--line);border-radius:5px;background:none;cursor:pointer}
+  /* 常用标准色（20 色） */
+  .swatches{display:grid;grid-template-columns:repeat(10,1fr);gap:4px;padding:1px 14px 10px}
+  .swatches .sw{height:16px;border-radius:4px;border:1px solid rgba(127,127,127,.45);cursor:pointer;padding:0;transition:transform .1s}
+  .swatches .sw:hover{transform:scale(1.18);border-color:var(--txt)}
+  .swatches .sw.sel{box-shadow:0 0 0 2px var(--panel),0 0 0 3.5px var(--txt)}
+  html[data-theme="light"] .swatches .sw{border-color:rgba(0,0,0,.18)}
+  .stylebox .tip{font-size:11px;color:var(--muted);line-height:1.5;padding:3px 14px 0}
+  .mitem .style{display:flex;align-items:center;gap:8px;padding-top:2px;border-top:1px dashed var(--line);margin-top:1px}
+  .mitem .style input[type=color]{width:26px;height:20px;padding:0;border:1px solid var(--line);border-radius:4px;background:none;cursor:pointer}
+  .mitem .style .mw{flex:1;min-width:0;height:16px;cursor:pointer;accent-color:var(--accent)}
+  .mitem .style .mwbox{width:44px;flex:none;background:var(--panel);border:1px solid var(--line);color:var(--txt);border-radius:5px;padding:2px 3px;font-size:12px;text-align:center;font-variant-numeric:tabular-nums}
+  .mitem .style .mwbox:focus{outline:none;border-color:var(--accent)}
+  .mitem .style .rst{background:none;border:1px solid var(--line);color:var(--muted);border-radius:5px;cursor:pointer;font-size:12px;padding:2px 6px;line-height:1.2}
+  .mitem .style .rst:hover{border-color:var(--accent);color:#fff}
+  .mitem .style .cap{font-size:11px;color:var(--muted)}
+  .mitem .style.dashrow{border-top:0;padding-top:0}
+  .mitem .style.dashrow .dashlbl{flex:none;white-space:nowrap}
+  .mitem .style.dashrow .dashr{flex:1;min-width:0;height:16px;cursor:pointer;accent-color:var(--accent)}
+  .mitem .style.dashrow .dashval{min-width:16px;text-align:right;font-variant-numeric:tabular-nums;color:var(--txt)}
+  .empty{color:var(--muted);text-align:center;padding:26px 16px;font-size:13px;line-height:1.7}
+  .foot{padding:10px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);display:flex;justify-content:space-between}
+
+  .mask{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:50}
+  .mask.on{display:flex}
+  .dlg{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px;width:340px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+  .dlg h3{margin:0 0 4px;font-size:15px}
+  .dlg p{margin:0 0 14px;color:var(--muted);font-size:13px}
+  .dlg .field{display:flex;gap:8px;margin-bottom:14px}
+  .dlg input{flex:1;background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:7px;padding:9px 11px;font-size:14px}
+  .dlg input:focus{outline:none;border-color:var(--accent)}
+  .dlg select{background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:7px;padding:9px;font-size:14px}
+  .dlg .btns{display:flex;justify-content:flex-end;gap:8px}
+  .dlg button{border-radius:7px;padding:8px 15px;font-size:13px;cursor:pointer;border:1px solid var(--line);background:var(--panel2);color:var(--txt)}
+  .dlg button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  /* help dialog */
+  .dlg.help{width:560px;max-width:92vw;max-height:86vh;display:flex;flex-direction:column}
+  .dlg.help .hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .dlg.help h3{margin:0;font-size:16px}
+  .dlg.help .xclose{border:1px solid var(--line);background:var(--panel2);color:var(--muted);border-radius:7px;width:28px;height:28px;font-size:16px;line-height:1;cursor:pointer;flex:none}
+  .dlg.help .xclose:hover{color:var(--txt);border-color:var(--accent)}
+  .helpbody{overflow-y:auto;padding-right:6px;font-size:13px;line-height:1.62;color:var(--txt)}
+  .helpbody h4{margin:16px 0 6px;font-size:13.5px;color:var(--accent);border-bottom:1px solid var(--line);padding-bottom:4px}
+  .helpbody h4:first-child{margin-top:0}
+  .helpbody p{margin:6px 0;color:var(--muted)}
+  .helpbody ul{margin:6px 0;padding-left:20px}
+  .helpbody li{margin:3px 0}
+  .helpbody b{color:var(--txt)}
+  .helpbody kbd{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:11.5px;font-family:inherit;color:var(--txt)}
+  .helpbody::-webkit-scrollbar{width:9px}
+  .helpbody::-webkit-scrollbar-thumb{background:var(--line);border-radius:5px}
+  #toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--panel2);border:1px solid var(--line);color:var(--txt);padding:9px 16px;border-radius:8px;font-size:13px;opacity:0;transition:.25s;pointer-events:none;z-index:60}
+  #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  /* drag & drop import overlay */
+  #dropMask{position:fixed;inset:0;background:rgba(76,154,255,.14);display:none;align-items:center;justify-content:center;z-index:80;pointer-events:none}
+  #dropMask.on{display:flex}
+  #dropMask::before{content:"";position:absolute;inset:10px;border:2px dashed var(--accent);border-radius:14px}
+  #dropMask .dcard{position:relative;background:var(--panel);border:1px solid var(--accent);border-radius:14px;padding:22px 30px;font-size:14px;color:var(--muted);text-align:center;line-height:1.75;box-shadow:0 20px 60px rgba(0,0,0,.45)}
+  #dropMask .dcard b{color:var(--accent);font-size:16px;display:block;margin-bottom:2px}
+  html[data-theme="light"] #dropMask{background:rgba(47,127,240,.09)}
+  html[data-theme="light"] #dropMask .dcard{box-shadow:0 20px 60px rgba(0,0,0,.18)}
+
+  /* custom dropdown menu (language / theme) */
+  .menuwrap{position:relative;display:inline-block}
+  .menubtn{display:inline-flex;align-items:center;gap:5px}
+  .menubtn .caret{width:10px;height:10px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;opacity:.65;margin-left:1px;flex:none}
+  .menu{position:absolute;top:calc(100% + 6px);right:0;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:4px;min-width:160px;box-shadow:0 10px 28px rgba(0,0,0,.38);display:none;z-index:70}
+  html[data-theme="light"] .menu{box-shadow:0 10px 28px rgba(0,0,0,.18)}
+  .menuwrap.open .menu{display:block}
+  .menuitem{display:flex;align-items:center;gap:7px;padding:7px 9px;border-radius:6px;font-size:13px;color:var(--txt);cursor:pointer;white-space:nowrap}
+  .menuitem:hover{background:var(--panel);border:0}
+  .menuitem .tick{width:13px;text-align:center;color:var(--accent2);opacity:0;font-size:12px;flex:none}
+  .menuitem.sel .tick{opacity:1}
+  .menuitem.sel{color:var(--accent2)}
+
+  /* ---------- light theme ---------- */
+  html[data-theme="light"]{
+    --bg:#eef1f6; --panel:#ffffff; --panel2:#f3f5f9; --line:#d3d9e3;
+    --txt:#1c2530; --muted:#5c6773; --accent:#2f7ff0; --accent2:#0ca678;
+    --danger:#e03e4a; --warn:#b8791f;
+  }
+  html[data-theme="light"] #stage{background:
+    linear-gradient(45deg,#e2e6ee 25%,transparent 25%),
+    linear-gradient(-45deg,#e2e6ee 25%,transparent 25%),
+    linear-gradient(45deg,transparent 75%,#e2e6ee 75%),
+    linear-gradient(-45deg,transparent 75%,#e2e6ee 75%);
+    background-size:22px 22px;background-position:0 0,0 11px,11px -11px,-11px 0px}
+  html[data-theme="light"] .toolbar2 button.tool:not(.active){background:#eef1f6}
+  html[data-theme="light"] button.tool:not(.active):hover{color:var(--txt)}
+  html[data-theme="light"] #toolhint{background:rgba(255,255,255,.92)}
+  html[data-theme="light"] #statusbar{background:rgba(255,255,255,.86);color:var(--muted)}
+  html[data-theme="light"] .toolbar2 button.tool[data-tip]::after{background:rgba(255,255,255,.97);color:var(--txt);box-shadow:0 3px 10px rgba(0,0,0,.15)}
+
+  /* ===== touch / canvas ===== */
+  #stage,#canvas{touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
+
+  /* ===== collapsible side panel ===== */
+  aside{transition:margin-right .22s ease}
+  body.panel-hidden aside{display:none}
+  #panelBtn{position:absolute;top:10px;right:10px;z-index:41;width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:rgba(23,26,33,.9);color:var(--txt);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px;line-height:1;box-shadow:0 2px 10px rgba(0,0,0,.35)}
+  #panelBtn:hover{border-color:var(--accent);color:#fff}
+  #panelBtn .pc{transition:transform .2s}
+  body.panel-hidden #panelBtn .pc{transform:rotate(180deg)}
+  html[data-theme="light"] #panelBtn{background:rgba(255,255,255,.92)}
+  .side-h .sh-x{background:none;border:1px solid var(--line);color:var(--muted);border-radius:6px;cursor:pointer;font-size:13px;line-height:1;padding:3px 8px}
+  .side-h .sh-x:hover{border-color:var(--accent);color:var(--txt)}
+
+  /* ===== floating constraint (bottom-left) + dpad (bottom-right) ===== */
+  /* 底部悬浮控件必须避开 iOS home indicator / Android 手势条 */
+  #floatpad{position:absolute;left:calc(10px + env(safe-area-inset-left,0px));bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:31;opacity:.92}
+  #dpadwrap{position:absolute;right:calc(10px + env(safe-area-inset-right,0px));bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:31;opacity:.92}
+  /* 绘制中出现的浮动操作条：触屏没有 Esc / Enter，必须给可见的入口 */
+  /* 抬到状态栏上方：两者都是底部居中，同高会叠在一起 */
+  #placeBar{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(48px + env(safe-area-inset-bottom,0px));z-index:33;display:none;gap:8px;align-items:center}
+  #placeBar.on{display:flex}
+  #placeBar .pb{height:44px;min-width:54px;padding:0 14px;font-size:13px;font-weight:600;border-radius:12px;background:rgba(23,26,33,.92);border:1px solid var(--line);color:var(--txt);cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent;touch-action:none}
+  #placeBar .pb:active{transform:scale(.94)}
+  #placeBar .pb.done{background:var(--accent2);border-color:var(--accent2);color:#04120c}
+  #placeBar .pb.cancel{background:rgba(23,26,33,.92);border-color:var(--danger);color:var(--danger)}
+  html[data-theme="light"] #placeBar .pb{background:rgba(255,255,255,.94)}
+  html[data-theme="light"] #placeBar .pb.done{background:var(--accent2);color:#04120c}
+  .fbtn{background:rgba(23,26,33,.82);border:1px solid var(--line);color:var(--txt);border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;line-height:1;box-shadow:0 2px 9px rgba(0,0,0,.32);-webkit-tap-highlight-color:transparent;touch-action:none;user-select:none}
+  .fbtn:active{transform:scale(.93)}
+  html[data-theme="light"] .fbtn{background:rgba(255,255,255,.9)}
+  #cbtnShift{width:92px;height:36px;gap:6px;font-size:13px;font-weight:600}
+  #cbtnShift .sk{font-size:16px}
+  #cbtnShift.on{background:var(--accent2);border-color:var(--accent2);color:#04120c}
+  .dpad{display:grid;grid-template-columns:repeat(3,37px);grid-template-rows:repeat(3,37px);gap:4px}
+  .dpad .fbtn{width:37px;height:37px;font-size:15px}
+  .dpad .up{grid-area:1/2/2/3}
+  .dpad .left{grid-area:2/1/3/2}
+  .dpad .right{grid-area:2/3/3/4}
+  .dpad .down{grid-area:3/2/4/3}
+  #dpadwrap.nosel{opacity:.4}
+  #dpadwrap.nosel .dpad{pointer-events:none}
+
+  /* ===== responsive (mobile) ===== */
+  @media (max-width:820px){
+    header{flex-wrap:wrap;padding:6px 8px;gap:5px}
+    .toolbar2{flex-wrap:wrap;padding:6px 8px;gap:5px}
+    header .title{display:none}
+    header .spacer{display:none}
+    .sep{margin:0 1px}
+    button.tool{padding:7px 9px;font-size:13px}
+    .toolbar2 button.tool[data-tip]::after{display:none}
+    aside{position:absolute;top:0;right:0;bottom:0;width:min(236px,86vw);z-index:36;border-left:1px solid var(--line);box-shadow:-6px 0 24px rgba(0,0,0,.4)}
+    #panelBtn{display:flex;width:38px;height:38px;font-size:16px}
+    .fbtn{box-shadow:0 2px 12px rgba(0,0,0,.45)}
+    .dpad{grid-template-columns:repeat(3,44px);grid-template-rows:repeat(3,44px)}
+    .dpad .fbtn{width:44px;height:44px;font-size:17px}
+    #cbtnShift{height:40px}
+    #toolhint{font-size:12px;max-width:56vw;top:8px}
+    #statusbar{font-size:11px}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="title" data-i18n-html="appTitle">图像测量 <span>Measure</span></div>
+    <button class="tool g2" id="btnOpen" data-i18n="btnOpen">📂 导入图片</button>
+    <div class="sep"></div>
+    <button class="tool" data-mode="calibrate" id="btnCalib" data-i18n="btnCalib">📏 设置标尺</button>
+    <button class="tool tg" id="btnLoupe" data-i18n="btnLoupe">🔍 放大镜</button>
+    <button class="tool tg" id="btnRadius" data-i18n="btnRadius">◔ 半径</button>
+    <div class="sep"></div>
+    <button class="tool g2" id="btnUndo" data-i18n="btnUndo" title="Ctrl+Z" disabled>↶ 撤销</button>
+    <button class="tool g2" id="btnRedo" data-i18n="btnRedo" title="Ctrl+Y" disabled>↷ 恢复</button>
+    <div class="spacer"></div>
+    <div class="menuwrap" id="langWrap">
+      <button class="tool g2 menubtn" id="langBtn" title="Language / 语言">🌐 <span data-i18n="langLabel">语言</span><svg class="caret" viewBox="0 0 10 10"><path d="M2 3 L5 6 L8 3"/></svg></button>
+      <div class="menu" id="langMenu">
+        <div class="menuitem" data-val="auto"><span class="tick">✓</span><span data-i18n="optSystem">系统默认</span></div>
+        <div class="menuitem" data-val="zh"><span class="tick">✓</span><span>中文</span></div>
+        <div class="menuitem" data-val="en"><span class="tick">✓</span><span>English</span></div>
+      </div>
+    </div>
+    <div class="menuwrap" id="themeWrap">
+      <button class="tool g2 menubtn" id="themeBtn" title="Theme / 主题">🎨 <span data-i18n="themeLabel">主题</span><svg class="caret" viewBox="0 0 10 10"><path d="M2 3 L5 6 L8 3"/></svg></button>
+      <div class="menu" id="themeMenu">
+        <div class="menuitem" data-val="auto"><span class="tick">✓</span><span data-i18n="optSystem">系统默认</span></div>
+        <div class="menuitem" data-val="light"><span class="tick">✓</span><span data-i18n="optLight">明亮</span></div>
+        <div class="menuitem" data-val="dark"><span class="tick">✓</span><span data-i18n="optDark">暗色</span></div>
+      </div>
+    </div>
+    <button class="tool g2" id="btnZoomFit" data-i18n="btnZoomFit">适应窗口</button>
+    <div class="sep"></div>
+    <button class="tool g2" id="btnImport" data-i18n="btnImport">⬆ 导入工程</button>
+    <button class="tool g2" id="btnExport" data-i18n="btnExport">⬇ 导出工程</button>
+    <button class="tool g2" id="btnPng" data-i18n="btnPng">🖼 导出图片</button>
+    <button class="tool g2" id="btnCsv" data-i18n="btnCsv">📊 导出表格</button>
+    <button class="tool g2" id="btnPdf" data-i18n="btnPdf">📄 导出 PDF</button>
+    <div class="sep"></div>
+    <button class="tool g2" id="btnHelp" data-i18n="btnHelp">❓ 说明</button>
+    <input type="file" id="fileImg" accept="image/*" hidden>
+    <input type="file" id="fileJson" accept=".json,application/json" hidden>
+  </header>
+
+  <div class="toolbar2">
+    <button class="tool" data-mode="select" data-tip="选择"><svg class="ic" viewBox="0 0 24 24"><path d="M6 4 L6 18.5 L10 14.7 L12.6 20.5 L15 19.4 L12.4 13.9 L17.6 13.9 Z" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linejoin="round"/></svg></button>
+    <div class="sep"></div>
+    <span class="grp">测量</span>
+    <button class="tool active" data-mode="line" data-tip="直线"><svg class="ic" viewBox="0 0 24 24"><line x1="5" y1="19" x2="19" y2="5"/><circle cx="5" cy="19" r="1.7" fill="currentColor" stroke="none"/><circle cx="19" cy="5" r="1.7" fill="currentColor" stroke="none"/></svg></button>
+    <button class="tool" data-mode="angle" data-tip="角度"><svg class="ic" viewBox="0 0 24 24"><path d="M20 5 L5 12 L20 19"/><path d="M10.5 8.7 A6 6 0 0 0 10.5 15.3"/></svg></button>
+    <button class="tool" data-mode="parallel" data-tip="平行线"><svg class="ic" viewBox="0 0 24 24"><line x1="3" y1="16" x2="15" y2="4"/><line x1="9" y1="20" x2="21" y2="8"/></svg></button>
+    <button class="tool" data-mode="pointline" data-tip="点距线"><svg class="ic" viewBox="0 0 24 24"><line x1="3" y1="19" x2="21" y2="19"/><circle cx="12" cy="5" r="1.9" fill="currentColor" stroke="none"/><line x1="12" y1="6.5" x2="12" y2="19" stroke-dasharray="2 2"/></svg></button>
+    <button class="tool" data-mode="arc" data-tip="弧线"><svg class="ic" viewBox="0 0 24 24"><path d="M4 18 A10 10 0 0 1 20 18"/><circle cx="4" cy="18" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="8.3" r="1.6" fill="currentColor" stroke="none"/><circle cx="20" cy="18" r="1.6" fill="currentColor" stroke="none"/></svg></button>
+    <button class="tool" data-mode="circle" data-tip="圆形"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg></button>
+    <button class="tool" data-mode="circle3" data-tip="圆·三点"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="4" r="1.7" fill="currentColor" stroke="none"/><circle cx="5.1" cy="16" r="1.7" fill="currentColor" stroke="none"/><circle cx="18.9" cy="16" r="1.7" fill="currentColor" stroke="none"/></svg></button>
+    <button class="tool" data-mode="ellipse" data-tip="椭圆"><svg class="ic" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="9" ry="6"/></svg></button>
+    <button class="tool" data-mode="rect" data-tip="矩形"><svg class="ic" viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="1.5"/></svg></button>
+    <button class="tool" data-mode="polygon" data-tip="多边形"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3 L21 10 L17.4 20.5 L6.6 20.5 L3 10 Z"/></svg></button>
+    <button class="tool" data-mode="spline" data-tip="样条曲线"><svg class="ic" viewBox="0 0 24 24"><path d="M3 16 C7 6 11 6 13 12 S19 18 21 8"/></svg></button>
+    <div class="sep"></div>
+    <button class="tool" data-mode="aux" data-tip="辅助线"><svg class="ic" viewBox="0 0 24 24"><line x1="4.5" y1="19.5" x2="19.5" y2="4.5" stroke-dasharray="3 2.5"/><path d="M4.5 19.5 L8 18.9 M4.5 19.5 L5.1 16" /><path d="M19.5 4.5 L16 5.1 M19.5 4.5 L18.9 8"/></svg></button>
+    <div class="sep"></div>
+    <button class="tool" data-mode="pan" data-tip="平移"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3 L12 21 M3 12 L21 12 M9.5 5.5 L12 3 L14.5 5.5 M9.5 18.5 L12 21 L14.5 18.5 M5.5 9.5 L3 12 L5.5 14.5 M18.5 9.5 L21 12 L18.5 14.5"/></svg></button>
+    <div class="spacer"></div>
+    <button class="tool danger" id="btnDel" data-i18n="btnDel" disabled>🗑 删除选中</button>
+    <button class="tool danger" id="btnClear" data-i18n="btnClear">清空</button>
+  </div>
+
+  <main>
+    <div id="stage">
+      <canvas id="canvas"></canvas>
+      <canvas id="loupe" width="152" height="152"></canvas>
+      <div id="hint" data-i18n-html="hintStart">
+        <b>开始使用</b><br>
+        点击「导入图片」加载照片 → 用「设置标尺」标定一段已知长度 → 选择测量工具作图
+      </div>
+      <div id="toolhint"></div>
+      <div id="statusbar" style="display:none"></div>
+      <button id="panelBtn" title="面板"><span class="pc">⟩</span></button>
+      <div id="floatpad">
+        <button class="fbtn" id="cbtnShift" title="约束 (Shift)"><span class="sk">⇧</span><span data-i18n="constrainBtn">约束</span></button>
+      </div>
+      <div id="placeBar">
+        <button class="pb" id="pbUndo" data-i18n="pbUndo">↩ 退一点</button>
+        <button class="pb done" id="pbDone" data-i18n="pbDone">✓ 完成</button>
+        <button class="pb cancel" id="pbCancel" data-i18n="pbCancel">✕ 取消</button>
+      </div>
+      <div id="dpadwrap" class="nosel">
+        <div class="dpad">
+          <button class="fbtn up" data-nudge="0,-1" aria-label="up">▲</button>
+          <button class="fbtn left" data-nudge="-1,0" aria-label="left">◀</button>
+          <button class="fbtn right" data-nudge="1,0" aria-label="right">▶</button>
+          <button class="fbtn down" data-nudge="0,1" aria-label="down">▼</button>
+        </div>
+      </div>
+    </div>
+
+    <aside>
+      <div id="asideResize" title="拖动调整宽度"></div>
+      <div class="scalebox">
+        <div class="row"><span data-i18n="scaleLabel">当前比例尺</span><span class="val" id="scaleVal">未标定</span></div>
+        <div class="row" id="scaleRow2" style="display:none"><span data-i18n="scalePerPx">1 像素 =</span><span class="val" id="scaleUnit"></span></div>
+        <div class="row" id="lockRow" style="display:none"><span data-i18n="scaleLock">标尺状态</span><button class="lockbtn" id="btnScaleLock"></button></div>
+      </div>
+      <div class="scalebox stylebox">
+        <div class="row"><span data-i18n="lineColor">全局颜色</span><input type="color" id="gColor" class="cin" value="#4c9aff"></div>
+        <div class="swatches" id="gSwatches"></div>
+        <div class="row"><span data-i18n="lineWidth">全局线宽</span></div>
+        <div class="wsrow"><input type="range" id="gWidth" min="0.5" max="12" step="0.1" value="2"><input type="number" id="gWidthNum" class="wbox" min="0.5" max="12" step="0.1" value="2"><span class="cap">px</span></div>
+        <div class="tip" data-i18n="globalOnlyTip">仅对之后绘制的图形生效；已画好的在列表里展开可单独改</div>
+      </div>
+      <details class="scalebox anglebox" id="angleBox">
+        <summary><span data-i18n="angleTitle">约束角度 (°)</span><span class="amini" data-i18n="angleMini">含平行/垂直</span></summary>
+        <div class="agrid" id="angleGrid"></div>
+      </details>
+      <div class="side-h"><span><span data-i18n="listTitle">测量列表</span> <span id="mcount" style="color:var(--muted);font-weight:400">0</span></span><button class="sh-x" id="asideCollapse" title="收起面板" data-i18n="collapsePanel">收起 ⟩</button></div>
+      <div class="mlist" id="mlist">
+        <div class="empty" data-i18n-html="emptyList">还没有测量数据<br>在上方选择测量工具，在图上作图即可</div>
+      </div>
+      <div class="foot"><span data-i18n="totalLabel">长度合计</span><span class="val" id="totalLen" style="color:var(--accent2)">—</span></div>
+    </aside>
+  </main>
+</div>
+
+<div class="mask" id="mask">
+  <div class="dlg">
+    <h3 id="dlgTitle" data-i18n="dlgTitle">设置标尺</h3>
+    <p id="dlgDesc" data-i18n="dlgDesc">输入你刚画的这条线对应的真实长度。</p>
+    <div class="field">
+      <input type="number" id="dlgInput" step="any" min="0" placeholder="真实长度，如 10" data-i18n-ph="dlgPh">
+      <select id="dlgUnit">
+        <option>mm</option><option selected>cm</option><option>m</option>
+        <option>in</option><option>ft</option><option>px</option>
+      </select>
+    </div>
+    <div class="btns">
+      <button id="dlgCancel" data-i18n="cancel">取消</button>
+      <button class="primary" id="dlgOk" data-i18n="ok">确定</button>
+    </div>
+  </div>
+</div>
+
+<div class="mask" id="helpMask">
+  <div class="dlg help">
+    <div class="hd">
+      <h3 data-i18n="helpTitle">使用说明</h3>
+      <button class="xclose" id="helpClose" title="关闭">×</button>
+    </div>
+    <div class="helpbody" id="helpBody" data-i18n-html="helpBody"></div>
+  </div>
+</div>
+
+<div id="dropMask"><div class="dcard"><b data-i18n="dropTitle">松开即可导入</b><span data-i18n="dropDesc">支持图片文件，或 .json 工程文件</span></div></div>
+
+<div id="toast"></div>
+
+<script>
+"use strict";
+(function(){
+  const $=id=>document.getElementById(id);
+  const canvas=$("canvas"), ctx=canvas.getContext("2d"), stage=$("stage");
+  const loupeEl=$("loupe");
+
+  const SHAPES={
+    line:     {label:"直线",  en:"Line",     click:2, hint:"点击两点测量距离"},
+    angle:    {label:"角度",  en:"Angle",    click:3, hint:"依次点击：一条边端点 → 顶点 → 另一条边端点"},
+    parallel: {label:"平行线",en:"Parallel", click:3, hint:"先点基准线两端，再点第三点确定平行线，测量间距"},
+    pointline:{label:"点距线",en:"Pt→Line",  click:3, hint:"先点直线两端，再点目标点，测量点到线距离"},
+    arc:      {label:"弧线",  en:"Arc",      click:3, hint:"点击弧线上三点"},
+    circle:   {label:"圆形",  en:"Circle",   click:2, hint:"先点圆心，再点圆周确定半径"},
+    circle3:  {label:"圆(三点)",en:"Circle3", click:3, hint:"点击圆周上任意三点定圆"},
+    ellipse:  {label:"椭圆",  en:"Ellipse",  click:2, hint:"点外接矩形对角两点（按住 Shift = 正圆）"},
+    rect:     {label:"矩形",  en:"Rect",     click:2, hint:"点对角两点（按住 Shift = 正方形）"},
+    polygon:  {label:"多边形",en:"Polygon",  click:0, hint:"依次点击各顶点，双击或回车闭合"},
+    spline:   {label:"样条曲线",en:"Spline", click:0, hint:"依次点击控制点，双击或回车结束"},
+    aux:      {label:"辅助线",  en:"Guide",   click:2, hint:"点击两点确定方向，辅助线向两端无限延伸（虚线）"}
+  };
+  // 常用标准色（20 色）：覆盖整圈色相，并额外提供白 / 近黑，便于在任意底色的照片上都看得清
+  const STD_COLORS=["#ff3b30","#ff6b35","#ff9500","#ffcc00","#a3e635","#34c759","#00c78c","#00c7be",
+                    "#32ade6","#0a84ff","#4f7cff","#5e5ce6","#9b5de5","#d64bd6","#ff5bb0","#ff4d6a",
+                    "#a2845e","#8e8e93","#ffffff","#1c1c1e"];
+
+  const S={
+    img:null, imgName:"", imgData:"",
+    view:{scale:1,ox:0,oy:0},
+    mode:"line", unit:"cm", pxPerUnit:null, calibLine:null,
+    measures:[], selId:null, active:-1,
+    placing:null, cursorImg:null,
+    drag:null, panning:false, panStart:null, viewStart:null,
+    loupe:false, mouseSp:null, showRadius:false, snapPt:null, extSegs:[],
+    gColor:"#4c9aff", gLineW:2, scaleLocked:false,
+    constrain:false, touch:null, nudged:false, adjusting:false,
+    customAngles:["30","45","60","","","","","","",""],
+    langPref:"auto", lang:"zh",
+    themePref:"auto", theme:"dark",
+    nextId:1, counters:{}
+  };
+
+  // ---------- i18n ----------
+  const I18N={
+    zh:{
+      docTitle:"图像测量工具 · Camera Measure",
+      appTitle:'图像测量 <span>Measure</span>',
+      btnOpen:"📂 导入图片", btnCalib:"📏 设置标尺", btnLoupe:"🔍 放大镜", btnRadius:"◔ 半径",
+      btnZoomFit:"⤢ 适应窗口", btnImport:"⬇ 导入工程", btnExport:"⬆ 导出工程", btnPng:"🖼 导出图片", btnCsv:"📊 导出表格", btnPdf:"📄 导出 PDF", btnHelp:"❓ 说明",
+      helpTitle:"使用说明",
+      helpBody:`
+        <h4>快速上手</h4>
+        <p>四步完成一次测量：</p>
+        <ul>
+          <li><b>① 导入图片</b>：点顶部「📂 导入图片」加载照片，也可以直接<b>把图片拖进窗口</b>，或用 <kbd>Ctrl</kbd>+<kbd>V</kbd> 粘贴剪贴板里的截图。</li>
+          <li><b>② 设置标尺</b>：点「📏 设置标尺」，在图上画一段<b>已知真实长度</b>的线（如尺子上的 10 cm），输入长度并选单位。标定后才能得到真实尺寸。</li>
+          <li><b>③ 选工具作图</b>：在左侧工具栏选择测量类型，按提示在图上点击。</li>
+          <li><b>④ 查看结果</b>：测量值显示在图上与右侧「测量列表」中。</li>
+        </ul>
+
+        <h4>测量工具</h4>
+        <ul>
+          <li><b>直线</b>：点击两点测量距离。</li>
+          <li><b>角度</b>：依次点一条边端点 → 顶点 → 另一条边端点。</li>
+          <li><b>平行线</b>：先点基准线两端，再点第三点确定平行线，测量间距。</li>
+          <li><b>点距线</b>：先点直线两端，再点目标点，测量点到线的距离。</li>
+          <li><b>弧线</b>：点击弧上三点，得半径与弧长。</li>
+          <li><b>圆形</b>：先点圆心，再点圆周确定半径。</li>
+          <li><b>圆·三点</b>：点圆周上任意三点定圆。</li>
+          <li><b>椭圆</b>：点外接矩形对角两点（按住 <kbd>Shift</kbd> = 正圆）。</li>
+          <li><b>矩形</b>：点对角两点（按住 <kbd>Shift</kbd> = 正方形）。</li>
+          <li><b>多边形</b>：依次点各顶点，<kbd>双击</kbd> 或 <kbd>Enter</kbd> 闭合。</li>
+          <li><b>样条曲线</b>：依次点控制点，<kbd>双击</kbd> 或 <kbd>Enter</kbd> 结束。</li>
+          <li><b>辅助线</b>：点两点确定方向，虚线向两端无限延伸，仅作参考、不计入测量。</li>
+        </ul>
+
+        <h4>选择与编辑</h4>
+        <ul>
+          <li>用「▲ 选择」工具点中某个图形，可拖动整体或单个控制点。</li>
+          <li>选中后按 <kbd>方向键</kbd> 微调 1 像素，<kbd>Shift</kbd>+方向键 移动 10 像素。</li>
+          <li>按 <kbd>Delete</kbd> / <kbd>Backspace</kbd> 删除选中项；多边形/样条上删除会移除单个顶点。</li>
+          <li>作图或拖动时会自动<b>吸附</b>到已有端点、圆心、线段及其延长线。</li>
+          <li>标注文字可直接拖动到合适位置。</li>
+        </ul>
+
+        <h4>辅助功能</h4>
+        <ul>
+          <li><b>🔍 放大镜</b>：开启后在指针处显示局部放大，便于精准取点。</li>
+          <li><b>◔ 半径</b>：切换圆/弧显示半径或直径。</li>
+          <li><b>适应窗口</b>：将图片缩放至完整可见。滚轮缩放，按住空格或用「平移」工具拖动画面。</li>
+          <li><b>颜色 / 线宽</b>：右侧可设全局样式；在列表中展开单条可单独覆盖其颜色与线宽。</li>
+        </ul>
+
+        <h4>保存与导出</h4>
+        <ul>
+          <li><b>⬇ 导出工程</b>：把图片、标尺与所有测量存为 <b>.json</b>，之后可用「⬆ 导入工程」完整恢复（工程文件同样可以拖进窗口）。</li>
+          <li><b>🖼 导出图片</b>：导出带标注的 PNG。</li>
+          <li><b>📊 导出表格</b>：把测量清单导出为 <b>.csv</b>（UTF-8，可直接用 Excel 打开）做统计或二次处理。</li>
+          <li><b>📄 导出 PDF</b>：生成带图与测量清单的报告，线条为矢量。</li>
+        </ul>
+
+        <h4>语言 / 主题</h4>
+        <p>顶栏「🌐 语言」可切换 中文 / English / 系统默认；「🎨 主题」可选 明亮 / 暗色 / 系统默认。设置会随工程一起保存。</p>
+      `,
+      btnDel:"🗑 删除选中", btnClear:"清空", btnUndo:"↶ 撤销", btnRedo:"↷ 恢复", constrainBtn:"约束", collapsePanel:"收起 ⟩",
+      pbUndo:"↩ 退一点", pbDone:"✓ 完成", pbCancel:"✕ 取消",
+      tool_select:"选择", tool_pan:"平移",
+      hintStart:'<b>开始使用</b><br>点击「导入图片」加载照片 → 用「设置标尺」标定一段已知长度 → 选择测量工具作图',
+      scaleLabel:"当前比例尺", scalePerPx:"1 像素 =", lineColor:"全局颜色", lineWidth:"全局线宽",
+      globalOnlyTip:"仅对之后绘制的图形生效；已画好的在列表里展开可单独改",
+      scaleLock:"标尺状态", lockLocked:"🔒 已锁定", lockUnlocked:"🔓 已解锁", toastScaleLocked:"标尺已锁定，请先在右边栏解锁", toastScaleUnlocked:"标尺已解锁，可重新设置",
+      angleTitle:"约束角度 (°)", angleMini:"含平行/垂直",
+      listTitle:"测量列表", totalLabel:"长度合计",
+      emptyList:"还没有测量数据<br>在上方选择测量工具，在图上作图即可",
+      dlgTitle:"设置标尺", dlgDesc:"输入你刚画的这条线对应的真实长度。", dlgPh:"真实长度，如 10",
+      cancel:"取消", ok:"确定",
+      langLabel:"语言", themeLabel:"主题", optSystem:"系统默认", optLight:"明亮", optDark:"暗色",
+      notCalibrated:"未标定标尺", notCalibratedShort:"未标定",
+      gapParallel:"平行线间距", ptToLine:"点到直线", collinear:"三点共线",
+      perimeter:"周长 ", area:"面积 ", sides:"边", curve:"曲线 ", points:"点", guide:"辅助线",
+      scalePrefix:"标尺 ", zoom:"缩放", pixel:"像素",
+      delete:"删除", thisColor:"该测量线颜色", thisWidth:"该测量线宽", resetGlobalTitle:"恢复为全局样式", globalBtn:"↺ 全局", dashGap:"虚线间距",
+      setScale:"设置标尺", hintCalib:"画一条已知长度的线",
+      toolSelectName:"选择", hintSelect:"点选图形，拖动控制点或方向键微调（Shift+方向键=10px）；多边形/样条：双击边线加点，选中顶点按 Delete 删点",
+      toastNoScale:"已记录，但尚未设置标尺，暂无实际数值", toastVertexAdded:"已添加顶点",
+      toastNeedImg:"请先导入图片", toastLenPositive:"请输入大于 0 的长度",
+      toastScaleSet:"标尺已设置：1{0} = {1} 像素", toastImgFail:"图片加载失败", toastNoData:"没有测量数据",
+      confirmClear:"确定清空所有测量数据？（标尺保留）", toastExported:"工程已导出", toastImported:"工程已导入",
+      toastImportFail:"导入失败：文件格式错误", toastPdfNoLib:"PDF 组件未加载（需联网）", toastPdfErr:"PDF 导出出错", toastPdfDone:"PDF 已导出", toastPngDone:"图片已导出", toastPngErr:"图片导出出错", toastCsvDone:"测量表格已导出",
+      toastPasted:"已粘贴剪贴板中的图片", toastDropUnsupported:"只支持图片文件或 .json 工程文件",
+      dropTitle:"松开即可导入", dropDesc:"支持图片文件，或 .json 工程文件",
+      csvLabel:"名称", csvType:"类型", csvValue:"测量值", csvDetail:"明细", csvScale:"比例尺",
+      hint_line:"点击两点测量距离", hint_angle:"依次点击：一条边端点 → 顶点 → 另一条边端点",
+      hint_parallel:"先点基准线两端，再点第三点确定平行线，测量间距", hint_pointline:"先点直线两端，再点目标点，测量点到线距离",
+      hint_arc:"点击弧线上三点", hint_circle:"先点圆心，再点圆周确定半径", hint_circle3:"点击圆周上任意三点定圆",
+      hint_ellipse:"点外接矩形对角两点（按住 Shift = 正圆）", hint_rect:"点对角两点（按住 Shift = 正方形）",
+      hint_polygon:"依次点击各顶点，双击或回车闭合", hint_spline:"依次点击控制点，双击或回车结束",
+      hint_aux:"点击两点确定方向，辅助线向两端无限延伸（虚线）"
+    },
+    en:{
+      docTitle:"Image Measure · Camera Measure",
+      appTitle:'Image <span>Measure</span>',
+      btnOpen:"📂 Open Image", btnCalib:"📏 Set Scale", btnLoupe:"🔍 Loupe", btnRadius:"◔ Radius",
+      btnZoomFit:"⤢ Fit", btnImport:"⬇ Import", btnExport:"⬆ Export", btnPng:"🖼 Export Image", btnCsv:"📊 Export CSV", btnPdf:"📄 Export PDF", btnHelp:"❓ Help",
+      helpTitle:"How to use",
+      helpBody:`
+        <h4>Quick start</h4>
+        <p>A measurement takes four steps:</p>
+        <ul>
+          <li><b>① Import image</b>: click "📂 Import Image" at the top, <b>drag an image file into the window</b>, or paste a screenshot from the clipboard with <kbd>Ctrl</kbd>+<kbd>V</kbd>.</li>
+          <li><b>② Set scale</b>: click "📏 Set Scale", draw a line over a segment of <b>known real length</b> (e.g. 10 cm on a ruler), then enter the length and unit. Real-world sizes are only available after calibration.</li>
+          <li><b>③ Pick a tool & draw</b>: choose a measurement type in the left toolbar and click on the image as prompted.</li>
+          <li><b>④ Read results</b>: values appear on the image and in the "Measurements" list on the right.</li>
+        </ul>
+
+        <h4>Measurement tools</h4>
+        <ul>
+          <li><b>Line</b>: click two points to measure distance.</li>
+          <li><b>Angle</b>: click one edge end → vertex → other edge end.</li>
+          <li><b>Parallel</b>: click both ends of the base line, then a third point for the parallel; measures the gap.</li>
+          <li><b>Point-line</b>: click both ends of a line, then the target point; measures point-to-line distance.</li>
+          <li><b>Arc</b>: click three points on the arc for radius and arc length.</li>
+          <li><b>Circle</b>: click the center, then a point on the circumference for the radius.</li>
+          <li><b>Circle · 3-pt</b>: click any three points on the circumference.</li>
+          <li><b>Ellipse</b>: click two opposite corners of the bounding box (hold <kbd>Shift</kbd> = circle).</li>
+          <li><b>Rect</b>: click two opposite corners (hold <kbd>Shift</kbd> = square).</li>
+          <li><b>Polygon</b>: click each vertex; <kbd>double-click</kbd> or <kbd>Enter</kbd> to close.</li>
+          <li><b>Spline</b>: click control points; <kbd>double-click</kbd> or <kbd>Enter</kbd> to finish.</li>
+          <li><b>Guide</b>: click two points to set a direction; the dashed line extends infinitely and is reference-only (not measured).</li>
+        </ul>
+
+        <h4>Select & edit</h4>
+        <ul>
+          <li>Use the "▲ Select" tool to pick a shape, then drag the whole shape or a single handle.</li>
+          <li>With a shape selected, <kbd>arrow keys</kbd> nudge by 1 px, <kbd>Shift</kbd>+arrow by 10 px.</li>
+          <li>Press <kbd>Delete</kbd> / <kbd>Backspace</kbd> to remove the selection; on a polygon/spline it removes a single vertex.</li>
+          <li>Drawing and dragging <b>snap</b> to existing endpoints, centers, segments and their extensions.</li>
+          <li>Labels can be dragged to reposition them.</li>
+        </ul>
+
+        <h4>Helpers</h4>
+        <ul>
+          <li><b>🔍 Magnifier</b>: shows a zoomed loupe at the cursor for precise picking.</li>
+          <li><b>◔ Radius</b>: toggle circles/arcs between radius and diameter.</li>
+          <li><b>Fit</b>: scale the image to fit the view. Scroll to zoom; hold space or use the "Pan" tool to move.</li>
+          <li><b>Color / width</b>: set global style on the right; expand a list item to override its color and width individually.</li>
+        </ul>
+
+        <h4>Save & export</h4>
+        <ul>
+          <li><b>⬇ Export</b>: save image, scale and all measurements as a <b>.json</b> project, restored fully via "⬆ Import" (project files can also be dropped into the window).</li>
+          <li><b>🖼 Export Image</b>: export a PNG with annotations drawn on it.</li>
+          <li><b>📊 Export CSV</b>: export the measurement list as a <b>.csv</b> (UTF-8, opens directly in Excel) for further processing.</li>
+          <li><b>📄 Export PDF</b>: generate a report with the image and a measurement list; all lines stay vector.</li>
+        </ul>
+
+        <h4>Language / theme</h4>
+        <p>Use "🌐 Language" to switch Chinese / English / System, and "🎨 Theme" for Light / Dark / System. These are saved with the project.</p>
+      `,
+      btnDel:"🗑 Delete", btnClear:"Clear", btnUndo:"↶ Undo", btnRedo:"↷ Redo", constrainBtn:"Lock", collapsePanel:"Hide ⟩",
+      pbUndo:"↩ Back", pbDone:"✓ Done", pbCancel:"✕ Cancel",
+      tool_select:"Select", tool_pan:"Pan",
+      hintStart:'<b>Get started</b><br>Open Image to load a photo → Set Scale to calibrate a known length → pick a tool and draw',
+      scaleLabel:"Scale", scalePerPx:"1 pixel =", lineColor:"Global color", lineWidth:"Global width",
+      globalOnlyTip:"Applies to shapes drawn afterwards; expand a list entry to restyle one already drawn",
+      scaleLock:"Scale status", lockLocked:"🔒 Locked", lockUnlocked:"🔓 Unlocked", toastScaleLocked:"Scale is locked — unlock it in the panel first", toastScaleUnlocked:"Scale unlocked — you can re-calibrate",
+      angleTitle:"Constraint angles (°)", angleMini:"incl. parallel/vertical",
+      listTitle:"Measurements", totalLabel:"Total length",
+      emptyList:"No measurements yet<br>Pick a tool above and draw on the image",
+      dlgTitle:"Set Scale", dlgDesc:"Enter the real length of the line you just drew.", dlgPh:"Real length, e.g. 10",
+      cancel:"Cancel", ok:"OK",
+      langLabel:"Language", themeLabel:"Theme", optSystem:"System", optLight:"Light", optDark:"Dark",
+      notCalibrated:"not calibrated", notCalibratedShort:"Not calibrated",
+      gapParallel:"parallel gap", ptToLine:"point to line", collinear:"collinear points",
+      perimeter:"Perim ", area:"Area ", sides:" sides", curve:"Curve ", points:" pts", guide:"Guide",
+      scalePrefix:"Scale ", zoom:"Zoom", pixel:"Pixel",
+      delete:"Delete", thisColor:"Line color", thisWidth:"Line width", resetGlobalTitle:"Reset to global style", globalBtn:"↺ Global", dashGap:"Dash gap",
+      setScale:"Set Scale", hintCalib:"Draw a line of known length",
+      toolSelectName:"Select", hintSelect:"Click a shape; drag handles or use arrow keys (Shift = 10px). Polygon/Spline: double-click an edge to add a point, select a vertex and press Delete to remove",
+      toastNoScale:"Recorded, but scale not set yet — no real value", toastVertexAdded:"Vertex added",
+      toastNeedImg:"Please open an image first", toastLenPositive:"Enter a length greater than 0",
+      toastScaleSet:"Scale set: 1{0} = {1} px", toastImgFail:"Failed to load image", toastNoData:"No measurements",
+      confirmClear:"Clear all measurements? (scale kept)", toastExported:"Project exported", toastImported:"Project imported",
+      toastImportFail:"Import failed: invalid file", toastPdfNoLib:"PDF library not loaded (needs internet)", toastPdfErr:"PDF export error", toastPdfDone:"PDF exported", toastPngDone:"Image exported", toastPngErr:"Image export error", toastCsvDone:"Measurements exported",
+      toastPasted:"Image from clipboard pasted", toastDropUnsupported:"Only image files or .json project files are supported",
+      dropTitle:"Drop to import", dropDesc:"Image files, or a .json project file",
+      csvLabel:"Label", csvType:"Type", csvValue:"Value", csvDetail:"Detail", csvScale:"Scale",
+      hint_line:"Click two points to measure distance", hint_angle:"Click in order: one edge end → vertex → other edge end",
+      hint_parallel:"Click the base line's two ends, then a third point for the parallel line to measure the gap", hint_pointline:"Click the line's two ends, then the target point to measure point-to-line distance",
+      hint_arc:"Click three points on the arc", hint_circle:"Click the center, then a point on the circle for the radius", hint_circle3:"Click any three points on the circle",
+      hint_ellipse:"Click two opposite corners of the box (hold Shift = circle)", hint_rect:"Click two opposite corners (hold Shift = square)",
+      hint_polygon:"Click each vertex; double-click or Enter to close", hint_spline:"Click control points; double-click or Enter to finish",
+      hint_aux:"Click two points to set direction; the guide extends infinitely both ways (dashed)"
+    }
+  };
+  function resolveLang(){
+    if(S.langPref==="zh"||S.langPref==="en")return S.langPref;
+    const n=((typeof navigator!=="undefined"&&(navigator.language||navigator.userLanguage))||"en").toLowerCase();
+    return n.indexOf("zh")===0?"zh":"en";
+  }
+  function L(k){let s=(I18N[S.lang]&&I18N[S.lang][k]);if(s==null)s=I18N.zh[k];if(s==null)return k;for(let i=1;i<arguments.length;i++)s=s.replace("{"+(i-1)+"}",arguments[i]);return s;}
+  function shapeName(t){return S.lang==="en"?((SHAPES[t]&&SHAPES[t].en)||t):((SHAPES[t]&&SHAPES[t].label)||t);}
+  function shapeHint(t){return S.lang==="en"?L("hint_"+t):((SHAPES[t]&&SHAPES[t].hint)||"");}
+  function applyStaticLang(){
+    try{document.title=L("docTitle");}catch(_){}
+    if(document.documentElement)document.documentElement.setAttribute("lang",S.lang==="en"?"en":"zh-CN");
+    document.querySelectorAll("[data-i18n]").forEach(el=>{el.textContent=L(el.getAttribute("data-i18n"));});
+    document.querySelectorAll("[data-i18n-html]").forEach(el=>{el.innerHTML=L(el.getAttribute("data-i18n-html"));});
+    document.querySelectorAll("[data-i18n-ph]").forEach(el=>{el.setAttribute("placeholder",L(el.getAttribute("data-i18n-ph")));});
+    // tooltips for the drawing toolbar (icon-only buttons)
+    document.querySelectorAll(".toolbar2 [data-mode]").forEach(b=>{
+      const md=b.dataset.mode;
+      const tip=md==="select"?L("tool_select"):md==="pan"?L("tool_pan"):shapeName(md);
+      b.setAttribute("data-tip",tip);
+    });
+    iconifyHeader();
+  }
+  // 顶部菜单栏：只显示图标，hover 才显示文字（复用 data-tip 气泡）
+  function iconifyHeader(){
+    document.querySelectorAll("header button.tool[data-i18n]").forEach(b=>{
+      const raw=L(b.getAttribute("data-i18n")).trim();
+      const sp=raw.indexOf(" ");
+      let icon=raw,label="";
+      if(sp>0){icon=raw.slice(0,sp);label=raw.slice(sp+1).trim();}
+      b.setAttribute("data-tip",label||icon);
+      b.classList.add("ico");
+      b.innerHTML='<span class="bi"></span><span class="bl"></span>';
+      b.querySelector(".bi").textContent=icon;
+      b.querySelector(".bl").textContent=label;
+    });
+    document.querySelectorAll("header .menubtn").forEach(b=>{
+      const lbl=b.querySelector("[data-i18n]");
+      if(lbl){lbl.classList.add("mlabel");b.setAttribute("data-tip",lbl.textContent.trim());}
+    });
+  }
+
+  // ---------- theme ----------
+  function resolveTheme(){
+    if(S.themePref==="light"||S.themePref==="dark")return S.themePref;
+    if(typeof window!=="undefined"&&typeof window.matchMedia==="function"){
+      try{return window.matchMedia("(prefers-color-scheme: light)").matches?"light":"dark";}catch(_){}
+    }
+    return "dark";
+  }
+  function applyTheme(){
+    S.theme=resolveTheme();
+    if(document.documentElement)document.documentElement.setAttribute("data-theme",S.theme);
+  }
+  // 跟随系统主题变化（仅在“系统默认”时生效）
+  (function(){
+    if(typeof window!=="undefined"&&typeof window.matchMedia==="function"){
+      try{const mq=window.matchMedia("(prefers-color-scheme: light)");
+        const h=()=>{if(S.themePref==="auto")applyTheme();};
+        if(mq.addEventListener)mq.addEventListener("change",h);else if(mq.addListener)mq.addListener(h);
+      }catch(_){}
+    }
+  })();
+
+  // ---------- math ----------
+  const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+  const mid=(a,b)=>({x:(a.x+b.x)/2,y:(a.y+b.y)/2});
+  function fmt(n){if(n==null||!isFinite(n))return"—";const a=Math.abs(n);let d=a>=100?1:a>=10?2:3;return n.toFixed(d).replace(/\.?0+$/,'');}
+  const px2u=px=>S.pxPerUnit?px/S.pxPerUnit:null;
+  function U(v,dim){if(v==null)return L("notCalibrated");return fmt(v)+" "+S.unit+(dim===2?"²":"");}
+  const calibText=()=>S.calibLine?(L("scalePrefix")+fmt(S.calibLine.realLen)+S.calibLine.unit):"";
+  function imgToScreen(p){return{x:p.x*S.view.scale+S.view.ox,y:p.y*S.view.scale+S.view.oy};}
+  function screenToImg(p){return{x:(p.x-S.view.ox)/S.view.scale,y:(p.y-S.view.oy)/S.view.scale};}
+
+  function pointLineDist(P,A,B){const dx=B.x-A.x,dy=B.y-A.y,len=Math.hypot(dx,dy)||1e-9;return Math.abs((P.x-A.x)*dy-(P.y-A.y)*dx)/len;}
+  function footOnLine(P,A,B){const dx=B.x-A.x,dy=B.y-A.y,l2=dx*dx+dy*dy||1e-9;const t=((P.x-A.x)*dx+(P.y-A.y)*dy)/l2;return{x:A.x+dx*t,y:A.y+dy*t};}
+  function pointSegDist(P,A,B){const dx=B.x-A.x,dy=B.y-A.y,l2=dx*dx+dy*dy;if(l2<1e-9)return dist(P,A);let t=((P.x-A.x)*dx+(P.y-A.y)*dy)/l2;t=Math.max(0,Math.min(1,t));return dist(P,{x:A.x+dx*t,y:A.y+dy*t});}
+  function angleDeg(a,v,b){const v1={x:a.x-v.x,y:a.y-v.y},v2={x:b.x-v.x,y:b.y-v.y};const d=Math.hypot(v1.x,v1.y)*Math.hypot(v2.x,v2.y)||1e-9;let c=(v1.x*v2.x+v1.y*v2.y)/d;c=Math.max(-1,Math.min(1,c));return Math.acos(c)*180/Math.PI;}
+  function circumcircle(A,B,C){const ax=A.x,ay=A.y,bx=B.x,by=B.y,cx=C.x,cy=C.y;const d=2*(ax*(by-cy)+bx*(cy-ay)+cx*(ay-by));if(Math.abs(d)<1e-9)return null;const A2=ax*ax+ay*ay,B2=bx*bx+by*by,C2=cx*cx+cy*cy;const ux=(A2*(by-cy)+B2*(cy-ay)+C2*(ay-by))/d;const uy=(A2*(cx-bx)+B2*(ax-cx)+C2*(bx-ax))/d;return{center:{x:ux,y:uy},r:Math.hypot(ax-ux,ay-uy)};}
+  function arcSamples(A,B,C,n){const cc=circumcircle(A,B,C);if(!cc)return null;const{center,r}=cc;const ang=p=>Math.atan2(p.y-center.y,p.x-center.x);const norm=x=>{while(x<0)x+=2*Math.PI;while(x>=2*Math.PI)x-=2*Math.PI;return x;};const a0=ang(A),a2=ang(C);const rel=norm(ang(B)-a0),full=norm(a2-a0);const ccw=rel<=full;const sweep=ccw?full:2*Math.PI-full;const pts=[];n=n||48;for(let i=0;i<=n;i++){const a=a0+(ccw?1:-1)*sweep*(i/n);pts.push({x:center.x+r*Math.cos(a),y:center.y+r*Math.sin(a)});}return{center,r,sweep,pts};}
+  function polyArea(p){let s=0;for(let i=0;i<p.length;i++){const j=(i+1)%p.length;s+=p[i].x*p[j].y-p[j].x*p[i].y;}return Math.abs(s)/2;}
+  function polyPerim(p,close){let s=0;for(let i=0;i<p.length-1;i++)s+=dist(p[i],p[i+1]);if(close&&p.length>2)s+=dist(p[p.length-1],p[0]);return s;}
+  function centroid(p){let x=0,y=0;p.forEach(q=>{x+=q.x;y+=q.y;});return{x:x/p.length,y:y/p.length};}
+  function catmull(pts,seg){if(pts.length<3)return pts.slice();const out=[];for(let i=0;i<pts.length-1;i++){const p0=pts[i-1]||pts[i],p1=pts[i],p2=pts[i+1],p3=pts[i+2]||pts[i+1];for(let j=0;j<seg;j++){const t=j/seg,t2=t*t,t3=t2*t;out.push({x:0.5*((2*p1.x)+(-p0.x+p2.x)*t+(2*p0.x-5*p1.x+4*p2.x-p3.x)*t2+(-p0.x+3*p1.x-3*p2.x+p3.x)*t3),y:0.5*((2*p1.y)+(-p0.y+p2.y)*t+(2*p0.y-5*p1.y+4*p2.y-p3.y)*t2+(-p0.y+3*p1.y-3*p2.y+p3.y)*t3)});}}out.push(pts[pts.length-1]);return out;}
+  function ellipseInfo(p){const cx=(p[0].x+p[1].x)/2,cy=(p[0].y+p[1].y)/2,rx=Math.abs(p[1].x-p[0].x)/2,ry=Math.abs(p[1].y-p[0].y)/2;return{cx,cy,rx,ry};}
+  function circleOf(m){if(m.type==="circle")return{center:m.pts[0],r:dist(m.pts[0],m.pts[1])};if(m.pts.length<3)return null;const cc=circumcircle(m.pts[0],m.pts[1],m.pts[2]);return cc?{center:cc.center,r:cc.r}:null;}
+
+  // ---------- compute ----------
+  function computeShape(m){
+    const p=m.pts;
+    try{
+      switch(m.type){
+        case "line":{const L=px2u(dist(p[0],p[1]));return{text:U(L,1),detail:"",kind:"length",value:L};}
+        case "angle":{const a=angleDeg(p[0],p[1],p[2]);return{text:fmt(a)+"°",detail:"",kind:"angle",value:a};}
+        case "parallel":{const d=px2u(pointLineDist(p[2],p[0],p[1]));return{text:U(d,1),detail:L("gapParallel"),kind:"length",value:d};}
+        case "pointline":{const d=px2u(pointLineDist(p[2],p[0],p[1]));return{text:U(d,1),detail:L("ptToLine"),kind:"length",value:d};}
+        case "arc":{const a=arcSamples(p[0],p[1],p[2],40);if(!a)return{text:"—",detail:L("collinear"),kind:"other"};const R=px2u(a.r),L2=px2u(a.r*a.sweep);return{text:"⌒ "+U(L2,1),detail:"R "+U(R,1)+" · "+fmt(a.sweep*180/Math.PI)+"°",kind:"length",value:L2};}
+        case "circle":case "circle3":{const cir=circleOf(m);if(!cir)return{text:"—",detail:L("collinear"),kind:"other"};const R=px2u(cir.r);if(R==null)return{text:L("notCalibrated"),detail:"",kind:"other"};return{text:"Ø "+U(2*R,1)+" · "+U(Math.PI*R*R,2),detail:"R "+U(R,1)+" · "+L("perimeter")+U(2*Math.PI*R,1),kind:"other"};}
+        case "ellipse":{const e=ellipseInfo(p);const a=px2u(e.rx),b=px2u(e.ry);if(a==null)return{text:L("notCalibrated"),detail:"",kind:"other"};const h=Math.pow(a-b,2)/Math.pow(a+b,2);const C=Math.PI*(a+b)*(1+3*h/(10+Math.sqrt(4-3*h)));return{text:fmt(2*a)+"×"+fmt(2*b)+" "+S.unit+" · "+U(Math.PI*a*b,2),detail:L("perimeter")+U(C,1),kind:"other"};}
+        case "rect":{const w=px2u(Math.abs(p[1].x-p[0].x)),h=px2u(Math.abs(p[1].y-p[0].y));if(w==null)return{text:L("notCalibrated"),detail:"",kind:"other"};return{text:fmt(w)+"×"+fmt(h)+" "+S.unit+" · "+U(w*h,2),detail:L("perimeter")+U(2*(w+h),1),kind:"other"};}
+        case "polygon":{const per=px2u(polyPerim(p,true));const areaU=S.pxPerUnit?polyArea(p)/(S.pxPerUnit*S.pxPerUnit):null;return{text:L("area")+U(areaU,2),detail:L("perimeter")+U(per,1)+" · "+p.length+L("sides"),kind:"other"};}
+        case "spline":{const s=catmull(p,18);let L2=0;for(let i=0;i<s.length-1;i++)L2+=dist(s[i],s[i+1]);const lu=px2u(L2);return{text:L("curve")+U(lu,1),detail:p.length+L("points"),kind:"length",value:lu};}
+        case "aux":{if(p.length<2)return{text:L("guide"),detail:"",kind:"other"};let ang=Math.atan2(p[1].y-p[0].y,p[1].x-p[0].x)*180/Math.PI;ang=((ang%180)+180)%180;return{text:fmt(ang)+"°",detail:L("guide"),kind:"other"};}
+      }
+    }catch(e){}
+    return{text:"—",detail:"",kind:"other"};
+  }
+
+  // ---------- canvas ----------
+  // CW/CH 是 CSS 像素下的画布尺寸；画布位图按其 × devicePixelRatio 分配，
+  // 再用 setTransform 把坐标系还原成 CSS 像素，这样所有绘制逻辑无需改动即可获得 HiDPI 清晰度。
+  let CW=0,CH=0,DPR=1;
+  function currentDpr(){try{return Math.min(3,Math.max(1,window.devicePixelRatio||1));}catch(e){return 1;}}
+  function resize(){
+    const r=stage.getBoundingClientRect();
+    CW=Math.max(1,Math.round(r.width));CH=Math.max(1,Math.round(r.height));DPR=currentDpr();
+    canvas.width=Math.round(CW*DPR);canvas.height=Math.round(CH*DPR);
+    canvas.style.width=CW+"px";canvas.style.height=CH+"px";
+    ctx.setTransform(DPR,0,0,DPR,0,0); // 位图放大后，把 1 单位还原成 1 CSS px
+    syncLoupeDpr(LOUPE_L);
+    draw();
+  }
+  window.addEventListener("resize",resize);
+  // 跨屏拖动 / 系统缩放变化会改变 devicePixelRatio，重配位图
+  (function(){
+    function handler(){resize();watch();}
+    function watch(){
+      try{
+        if(watch.mq&&watch.mq.removeEventListener)watch.mq.removeEventListener("change",handler);
+        watch.mq=window.matchMedia("(resolution: "+window.devicePixelRatio+"dppx)");
+        if(watch.mq&&watch.mq.addEventListener)watch.mq.addEventListener("change",handler);
+      }catch(e){}
+    }
+    watch();
+  })();
+  function fitView(){if(!S.img)return;const pad=40,w=CW-pad*2,h=CH-pad*2;const sc=Math.min(w/S.img.width,h/S.img.height);S.view.scale=sc>0?sc:1;S.view.ox=(CW-S.img.width*S.view.scale)/2;S.view.oy=(CH-S.img.height*S.view.scale)/2;draw();}
+
+  function draw(){
+    ctx.clearRect(0,0,CW,CH);
+    if(!S.img)return;
+    ctx.drawImage(S.img,S.view.ox,S.view.oy,S.img.width*S.view.scale,S.img.height*S.view.scale);
+    paintOverlay(ctx,imgToScreen,{k:S.view.scale,cacheLbl:true,handles:true});
+  }
+  // 覆盖层（所有测量/辅助元素的矢量绘制）。g 可以是主画布 ctx，也可以是放大镜 ctx；
+  // T 是「图像坐标 → 目标坐标」的映射；这样放大镜无需采样位图就能重画出同样的内容。
+  // ⚠️ 这里一度加了「按矩形裁剪视口外图形」的优化，已回退：性能收益未经验证，而正确性有坑——
+  // 长直线/无限延伸的辅助线(aux)、超出顶点 15% 的点距线(pointline)都会穿过放大镜视口却因顶点在框外被误剔除。
+  // 若将来确需优化，必须按各类型的真实绘制范围(bbox + 延伸量)裁剪，而不是只看顶点。
+  function paintOverlay(g,T,opt){
+    const k=opt.k||1;
+    if(S.calibLine)renderShape(g,{type:"line",pts:[S.calibLine.p1,S.calibLine.p2],color:"#ffc857"},T,{k,lw:2,fs:12,dash:true,forceText:calibText()});
+    S.measures.forEach(m=>{
+      const bw=(m.lw||S.gLineW);
+      renderShape(g,m,T,{k,lw:bw+(m.id===S.selId?0.8:0),fs:12,cacheLbl:opt.cacheLbl,
+        handles:opt.handles&&(S.mode==="select"&&m.id===S.selId),active:(m.id===S.selId?S.active:-1),sel:m.id===S.selId});
+    });
+    if(S.placing){
+      const pts=S.placing.pts.slice();
+      if(S.cursorImg)pts.push(S.cursorImg);
+      if(pts.length>=1)renderShape(g,{type:S.placing.type,pts,color:S.placing.type==="calibrate"?"#ffc857":"#4c9aff"},T,{k,lw:2,fs:12,dash:S.placing.type==="calibrate",draft:true});
+    }
+    if(S.extSegs&&S.extSegs.length){g.save();g.setLineDash([6,5]);g.strokeStyle="rgba(56,211,159,.5)";g.lineWidth=1.2;
+      S.extSegs.forEach(e=>{const a=T(e.A),b=T(e.B);const dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy)||1,ux=dx/len,uy=dy/len;const ext=Math.max(CW,CH)*1.6;
+        g.beginPath();g.moveTo(b.x,b.y);g.lineTo(b.x+ux*ext,b.y+uy*ext);g.moveTo(a.x,a.y);g.lineTo(a.x-ux*ext,a.y-uy*ext);g.stroke();});
+      g.restore();
+    }
+    if(S.snapPt){const c=T(S.snapPt),kind=S.snapPt.kind,gc="#38d39f";g.save();g.setLineDash([]);g.strokeStyle=gc;g.fillStyle=gc;
+      if(kind==="line"){g.lineWidth=2;g.beginPath();g.moveTo(c.x,c.y-8);g.lineTo(c.x+8,c.y);g.lineTo(c.x,c.y+8);g.lineTo(c.x-8,c.y);g.closePath();g.stroke();}
+      else{g.lineWidth=2;g.beginPath();g.arc(c.x,c.y,9,0,7);g.stroke();g.strokeStyle="rgba(56,211,159,.35)";g.lineWidth=1;g.beginPath();g.arc(c.x,c.y,13,0,7);g.stroke();
+        if(kind==="center"){g.strokeStyle=gc;g.lineWidth=1.5;g.beginPath();g.moveTo(c.x-4,c.y);g.lineTo(c.x+4,c.y);g.moveTo(c.x,c.y-4);g.lineTo(c.x,c.y+4);g.stroke();}
+        if(kind==="mid"){g.fillStyle=gc;g.fillRect(c.x-2.5,c.y-2.5,5,5);}
+        if(kind==="cross"){g.strokeStyle=gc;g.lineWidth=1.6;g.beginPath();g.moveTo(c.x-4,c.y-4);g.lineTo(c.x+4,c.y+4);g.moveTo(c.x-4,c.y+4);g.lineTo(c.x+4,c.y-4);g.stroke();}}
+      g.restore();}
+  }
+
+  function roundRect(g,x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath();}
+
+  // generic renderer. T: image->screen; opt.k scale factor for radii/linewidth base
+  function renderShape(g,m,T,opt){
+    const col=m.color||S.gColor, lw=opt.lw||2, fs=opt.fs||12, k=opt.k||1;
+    const P=m.pts.map(T);
+    g.save();g.lineCap="round";g.lineJoin="round";g.strokeStyle=col;g.fillStyle=col;g.lineWidth=lw;
+    let anchor=null,poly=null,centerImg=null;
+    const stroke=(arr,close,dash)=>{g.setLineDash(Array.isArray(dash)?dash:(dash?[7,5]:[]));g.beginPath();arr.forEach((p,i)=>i?g.lineTo(p.x,p.y):g.moveTo(p.x,p.y));if(close)g.closePath();g.stroke();g.setLineDash([]);};
+    const t=m.type;
+    if(t==="line"||t==="calibrate"){if(P.length>=2){stroke([P[0],P[1]],false,opt.dash);anchor=mid(P[0],P[1]);}else anchor=P[0];}
+    else if(t==="angle"){stroke(P,false);if(P.length>=3){const v=P[1];const r=22;const a1=Math.atan2(P[0].y-v.y,P[0].x-v.x),a2=Math.atan2(P[2].y-v.y,P[2].x-v.x);g.beginPath();g.arc(v.x,v.y,r,a1,a2);g.stroke();}anchor=P[1]||P[0];}
+    else if(t==="parallel"){if(P.length>=2)stroke([P[0],P[1]],false);if(P.length>=3){const a=m.pts[0],b=m.pts[1],c=m.pts[2];const dx=b.x-a.x,dy=b.y-a.y,L=Math.hypot(dx,dy)||1;const ux=dx/L,uy=dy/L;const t0=((c.x-a.x)*ux+(c.y-a.y)*uy);const A2={x:a.x+ux*t0,y:a.y+uy*t0};const foot=A2;const B2={x:c.x+(b.x-A2.x),y:c.y+(b.y-A2.y)};const sA=T(c),sB=T(B2);stroke([sA,sB],false);const fS=T(foot),cS=T(c);g.setLineDash([3,3]);stroke([fS,cS],false,true);anchor=mid(fS,cS);}else anchor=P[P.length-1];}
+    else if(t==="pointline"){if(P.length>=2){const a=m.pts[0],b=m.pts[1];const dx=b.x-a.x,dy=b.y-a.y;const ext=0.15;const eA={x:a.x-dx*ext,y:a.y-dy*ext},eB={x:b.x+dx*ext,y:b.y+dy*ext};stroke([T(eA),T(eB)],false);}if(P.length>=3){const foot=footOnLine(m.pts[2],m.pts[0],m.pts[1]);const fS=T(foot),cS=T(m.pts[2]);g.setLineDash([4,3]);stroke([fS,cS],false,true);anchor=mid(fS,cS);}else anchor=P[P.length-1];}
+    else if(t==="arc"){if(P.length>=3){const a=arcSamples(m.pts[0],m.pts[1],m.pts[2],48);if(a){stroke(a.pts.map(T),false);centerImg=a.center;}else stroke(P,false);anchor=P[1];}else{stroke(P,false);anchor=P[P.length-1];}}
+    else if(t==="circle"){if(P.length>=2){const c=P[0],rS=dist(m.pts[0],m.pts[1])*k;g.beginPath();g.arc(c.x,c.y,rS,0,Math.PI*2);g.stroke();stroke([P[0],P[1]],false,true);centerImg=m.pts[0];anchor={x:c.x,y:c.y-rS};}else anchor=P[0];}
+    else if(t==="circle3"){if(m.pts.length>=3){const cc=circumcircle(m.pts[0],m.pts[1],m.pts[2]);if(cc){const c=T(cc.center),rS=cc.r*k;g.beginPath();g.arc(c.x,c.y,rS,0,Math.PI*2);g.stroke();centerImg=cc.center;anchor={x:c.x,y:c.y-rS};}else{stroke(P,false);anchor=P[1];}}else{stroke(P,false);anchor=P[P.length-1];}}
+    else if(t==="ellipse"){if(P.length>=2){const e=ellipseInfo(m.pts);const c=T({x:e.cx,y:e.cy});g.beginPath();g.ellipse(c.x,c.y,e.rx*k,e.ry*k,0,0,Math.PI*2);g.stroke();g.setLineDash([3,4]);g.strokeStyle="rgba(255,255,255,.25)";g.strokeRect(Math.min(P[0].x,P[1].x),Math.min(P[0].y,P[1].y),Math.abs(P[1].x-P[0].x),Math.abs(P[1].y-P[0].y));g.strokeStyle=col;g.setLineDash([]);centerImg={x:e.cx,y:e.cy};anchor={x:c.x,y:c.y-e.ry*k};}else anchor=P[0];}
+    else if(t==="rect"){if(P.length>=2){const x0=Math.min(P[0].x,P[1].x),y0=Math.min(P[0].y,P[1].y),w=Math.abs(P[1].x-P[0].x),h=Math.abs(P[1].y-P[0].y);g.strokeRect(x0,y0,w,h);centerImg={x:(m.pts[0].x+m.pts[1].x)/2,y:(m.pts[0].y+m.pts[1].y)/2};anchor={x:x0+w/2,y:y0};}else anchor=P[0];}
+    else if(t==="polygon"){const closeIt=!opt.draft;stroke(P,closeIt&&P.length>2);if(P.length>2){g.globalAlpha=.08;g.beginPath();P.forEach((p,i)=>i?g.lineTo(p.x,p.y):g.moveTo(p.x,p.y));g.closePath();g.fill();g.globalAlpha=1;}anchor=P.length?T(centroid(m.pts)):null;}
+    else if(t==="spline"){if(m.pts.length>=3){stroke(catmull(m.pts,16).map(T),false);}else stroke(P,false);anchor=P[Math.floor(P.length/2)]||P[0];}
+    else if(t==="aux"){if(P.length>=2){const dx=P[1].x-P[0].x,dy=P[1].y-P[0].y,len=Math.hypot(dx,dy)||1,ux=dx/len,uy=dy/len,ext=20000;const a={x:P[0].x-ux*ext,y:P[0].y-uy*ext},b={x:P[1].x+ux*ext,y:P[1].y+uy*ext};const gap=(m.dash!=null?m.dash:5);stroke([a,b],false,[7,gap]);anchor=mid(P[0],P[1]);}else anchor=P[0];}
+
+    // 端点/手柄：已完成的图形【不再画顶点】，避免圆点成为画面噪声。
+    // 只在两种时机显示：① 放置中（draft，空心点，给取点反馈）② 选中待编辑（handles，方形手柄）。
+    // 否则多边形、多段线会留下一串圆点。选中后手柄照旧出现，编辑能力不受影响。
+    P.forEach((p,i)=>{
+      if(m.type==="aux"&&!opt.handles)return; // 辅助线仅在被选中时显示端点
+      if(opt.handles){const s=(i===opt.active)?6:5;g.setLineDash([]);g.lineWidth=3;g.strokeStyle="rgba(15,17,21,.85)";g.strokeRect(p.x-s,p.y-s,2*s,2*s);g.lineWidth=(i===opt.active)?2.4:1.7;g.strokeStyle=(i===opt.active)?"#ffffff":col;g.strokeRect(p.x-s,p.y-s,2*s,2*s);/* 透明填充，可见下方图像 */}
+      else if(opt.draft){g.setLineDash([]);const r=lw+2.2;g.beginPath();g.arc(p.x,p.y,r,0,7);g.lineWidth=2.6;g.strokeStyle="rgba(15,17,21,.7)";g.stroke();g.lineWidth=1.6;g.strokeStyle=col;g.stroke();/* 空心端点，画线时可见下方图像 */}
+    });
+
+    // center marker (+) for arc / circle / circle3 / ellipse / rect
+    if(centerImg&&!opt.draft){const cp=T(centerImg),cs=6;g.setLineDash([]);g.lineWidth=2;g.strokeStyle="rgba(15,17,21,.6)";g.beginPath();g.moveTo(cp.x-cs,cp.y);g.lineTo(cp.x+cs,cp.y);g.moveTo(cp.x,cp.y-cs);g.lineTo(cp.x,cp.y+cs);g.stroke();g.lineWidth=1;g.strokeStyle=col;g.beginPath();g.moveTo(cp.x-cs,cp.y);g.lineTo(cp.x+cs,cp.y);g.moveTo(cp.x,cp.y-cs);g.lineTo(cp.x,cp.y+cs);g.stroke();}
+
+    // optional radius readout for circle / circle3 / arc
+    if(S.showRadius&&centerImg&&!opt.draft&&(t==="circle"||t==="circle3"||t==="arc")){
+      const rim=t==="circle"?m.pts[1]:(t==="circle3"?m.pts[0]:m.pts[1]);
+      const a=T(centerImg),b=T(rim);
+      g.save();g.setLineDash([5,4]);g.globalAlpha=.85;g.strokeStyle=col;g.lineWidth=1.4;g.beginPath();g.moveTo(a.x,a.y);g.lineTo(b.x,b.y);g.stroke();g.setLineDash([]);g.globalAlpha=1;
+      const rt="R="+U(px2u(dist(centerImg,rim)),1);const mp={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
+      g.font="600 "+fs+"px -apple-system,Segoe UI,Roboto,sans-serif";const tw=g.measureText(rt).width;
+      g.fillStyle="rgba(15,17,21,.85)";roundRect(g,mp.x-tw/2-5,mp.y-fs/2-3,tw+10,fs+4,4);g.fill();
+      g.fillStyle=col;g.textBaseline="middle";g.fillText(rt,mp.x-tw/2,mp.y);g.restore();
+    }
+
+    // label
+    let text=opt.forceText;
+    if(text===undefined&&!opt.draft&&m.id!=null){const c=computeShape(m);text=c.text;}
+    else if(opt.draft&&m.type==="line"&&S.pxPerUnit&&m.pts.length>=2){text=fmt(px2u(dist(m.pts[0],m.pts[1])))+S.unit;}
+    if(text&&anchor){
+      const off=m.labelOff||{x:0,y:0};
+      const ax=anchor.x+off.x*k, ay=anchor.y+off.y*k;
+      g.font="600 "+fs+"px -apple-system,Segoe UI,Roboto,sans-serif";const tw=g.measureText(text).width;
+      const bx=ax-tw/2-6, by=ay-fs-12, bw=tw+12, bh=fs+6;
+      if((off.x||off.y)&&!opt.draft){g.save();g.setLineDash([2,3]);g.globalAlpha=.55;g.strokeStyle=col;g.lineWidth=1;g.beginPath();g.moveTo(anchor.x,anchor.y);g.lineTo(ax,by+bh);g.stroke();g.restore();}
+      g.fillStyle="rgba(15,17,21,.85)";roundRect(g,bx,by,bw,bh,5);g.fill();
+      if(opt.sel){g.strokeStyle=col;g.lineWidth=1;g.stroke();}
+      g.fillStyle=col;g.textBaseline="middle";g.fillText(text,ax-tw/2,by+bh/2);
+      if(opt.cacheLbl&&m.id!=null)m._lbl={x:bx,y:by,w:bw,h:bh};
+    }else if(opt.cacheLbl&&m.id!=null){m._lbl=null;}
+    g.restore();
+  }
+
+  // ---------- hit testing ----------
+  function handleAt(m,sp){for(let i=0;i<m.pts.length;i++){if(dist(imgToScreen(m.pts[i]),sp)<10)return i;}return -1;}
+  function hitLabel(m,sp){const b=m._lbl;if(!b)return false;return sp.x>=b.x&&sp.x<=b.x+b.w&&sp.y>=b.y&&sp.y<=b.y+b.h;}
+  function hitBody(m,sp){
+    const P=m.pts.map(imgToScreen),tol=7;
+    const segs=(arr,close)=>{for(let i=0;i<arr.length-1;i++)if(pointSegDist(sp,arr[i],arr[i+1])<tol)return true;if(close&&arr.length>2&&pointSegDist(sp,arr[arr.length-1],arr[0])<tol)return true;return false;};
+    switch(m.type){
+      case "line":return segs(P,false);
+      case "angle":return segs(P,false);
+      case "parallel":case "pointline":return segs([P[0],P[1]],false)||dist(P[2]||sp,sp)<12;
+      case "arc":{const a=arcSamples(m.pts[0],m.pts[1],m.pts[2],40);return a?segs(a.pts.map(imgToScreen),false):segs(P,false);}
+      case "circle":case "circle3":{const cir=circleOf(m);if(!cir)return false;const c=imgToScreen(cir.center),rS=cir.r*S.view.scale;return Math.abs(dist(sp,c)-rS)<tol;}
+      case "ellipse":{const e=ellipseInfo(m.pts);const pts=[];for(let i=0;i<=48;i++){const a=i/48*Math.PI*2;pts.push(imgToScreen({x:e.cx+e.rx*Math.cos(a),y:e.cy+e.ry*Math.sin(a)}));}return segs(pts,true);}
+      case "rect":{const c=[{x:m.pts[0].x,y:m.pts[0].y},{x:m.pts[1].x,y:m.pts[0].y},{x:m.pts[1].x,y:m.pts[1].y},{x:m.pts[0].x,y:m.pts[1].y}].map(imgToScreen);return segs(c,true);}
+      case "polygon":return segs(P,true);
+      case "spline":return segs(catmull(m.pts,16).map(imgToScreen),false);
+      case "aux":{if(m.pts.length<2)return false;return pointLineDist(sp,imgToScreen(m.pts[0]),imgToScreen(m.pts[1]))<tol;}
+    }
+    return false;
+  }
+
+  // ---------- constraints ----------
+  function CON(e){return (!!(e&&e.shiftKey))||S.constrain;}
+  // 约束方向集合：默认仅平行(0/180)与垂直(90/270)，外加用户自定义角度(在四象限镜像)
+  function constraintAngles(){
+    const deg=new Set([0,90,180,270]);
+    (S.customAngles||[]).forEach(a=>{if(a==null||a==="")return;const v=parseFloat(a);if(isNaN(v))return;let n=((v%180)+180)%180;[n,180-n,180+n,360-n].forEach(x=>deg.add((x%360+360)%360));});
+    return [...deg].map(d=>d*Math.PI/180);
+  }
+  function constrain(prev,cur,type){
+    if(!prev)return cur;
+    if(type==="rect"||type==="ellipse"){const dx=cur.x-prev.x,dy=cur.y-prev.y,m=Math.max(Math.abs(dx),Math.abs(dy));return{x:prev.x+Math.sign(dx||1)*m,y:prev.y+Math.sign(dy||1)*m};}
+    if(type==="circle"||type==="circle3")return cur;
+    // 方向约束：吸附到平行/垂直 + 自定义角度
+    const dx=cur.x-prev.x,dy=cur.y-prev.y;
+    if(dx===0&&dy===0)return cur;
+    const angs=constraintAngles();
+    const ca=Math.atan2(dy,dx);
+    let best=angs[0],bd=Infinity;
+    for(const a of angs){let diff=Math.abs(ca-a)%(2*Math.PI);if(diff>Math.PI)diff=2*Math.PI-diff;if(diff<bd){bd=diff;best=a;}}
+    const len=dx*Math.cos(best)+dy*Math.sin(best);
+    return{x:prev.x+len*Math.cos(best),y:prev.y+len*Math.sin(best)};
+  }
+
+  // ---------- interaction ----------
+  function mousePos(e){const r=canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};}
+
+  canvas.addEventListener("mousedown",e=>{
+    if(!S.img)return;const sp=mousePos(e);
+    if(S.mode==="pan"||e.button===1){S.panning=true;S.panStart=sp;S.viewStart={ox:S.view.ox,oy:S.view.oy};canvas.style.cursor="grabbing";e.preventDefault();return;}
+    if(e.button!==0)return;
+    if(S.mode==="select"){selectDown(sp,e);return;}
+    // placement modes (shape tools + calibrate)
+    placementClick(sp,e);
+  });
+
+  canvas.addEventListener("mousemove",e=>{
+    const sp=mousePos(e);S.mouseSp=sp;
+    if(S.panning){S.view.ox=S.viewStart.ox+(sp.x-S.panStart.x);S.view.oy=S.viewStart.oy+(sp.y-S.panStart.y);draw();drawLoupe(sp);updateStatus(sp);return;}
+    if(S.drag){dragMove(sp,e);drawLoupe(sp);return;}
+    if(S.placing){updateExtSeg(sp);const ipRaw=screenToImg(sp);
+      if(S.adjusting){const idx=S.placing.pts.length-1;const prev=idx>0?S.placing.pts[idx-1]:null;const r=placePoint(prev,ipRaw,S.placing.type,CON(e),sp);S.placing.pts[idx]=r.pt;S.cursorImg=r.pt;S.snapPt=r.snap;}
+      else{const prev=S.placing.pts[S.placing.pts.length-1];const r=placePoint(prev,ipRaw,S.placing.type,CON(e),sp);S.cursorImg=r.pt;S.snapPt=r.snap;}
+      draw();}
+    else if(S.img&&(SHAPES[S.mode]||S.mode==="calibrate")){const beforeExt=extKey(S.extSegs);updateExtSeg(sp);const snap=snapVertex(sp);const snapChanged=(snap!==S.snapPt&&!(snap&&S.snapPt&&snap.x===S.snapPt.x&&snap.y===S.snapPt.y));S.snapPt=snap;if(snapChanged||extKey(S.extSegs)!==beforeExt)draw();}
+    else if(S.snapPt||(S.extSegs&&S.extSegs.length)){S.snapPt=null;S.extSegs=[];draw();}
+    if(S.mode==="select"&&S.selId!=null){const m=getM(S.selId);canvas.style.cursor=(m&&(handleAt(m,sp)>=0||hitLabel(m,sp)))?"move":(m&&hitBody(m,sp)?"move":"default");}
+    drawLoupe(sp);updateStatus(sp);
+  });
+  window.addEventListener("mouseup",()=>{if(S.panning){S.panning=false;canvas.style.cursor=S.mode==="pan"?"grab":(S.mode==="select"?"default":"crosshair");}if(S.drag){const moved=S.dragMoved;S.drag=null;S.dragMoved=false;if(moved)commit();}if(S.adjusting)placementUp();});
+  canvas.addEventListener("mouseleave",()=>{loupeEl.style.display="none";if((S.snapPt||(S.extSegs&&S.extSegs.length))&&!S.placing){S.snapPt=null;S.extSegs=[];draw();}});
+  canvas.addEventListener("contextmenu",e=>{if(S.placing){e.preventDefault();cancelPlacing();}});
+  canvas.addEventListener("dblclick",e=>{if(S.placing&&(S.placing.type==="polygon"||S.placing.type==="spline")){popLastIfDuplicate(S.placing.pts);finalizePlacing();e.preventDefault();return;}if(S.mode==="select"&&S.img){const sp=mousePos(e);if(tryInsertVertex(sp))e.preventDefault();}});
+
+  canvas.addEventListener("wheel",e=>{if(!S.img)return;e.preventDefault();const sp=mousePos(e);const ip=screenToImg(sp);const f=e.deltaY<0?1.12:1/1.12;S.view.scale=Math.min(80,Math.max(0.02,S.view.scale*f));S.view.ox=sp.x-ip.x*S.view.scale;S.view.oy=sp.y-ip.y*S.view.scale;draw();drawLoupe(sp);updateStatus(sp);},{passive:false});
+
+  // 图形中心（封闭图形/圆弧）
+  function shapeCenter(m){
+    const p=m.pts;
+    if(m.type==="circle")return p[0]||null;
+    if(m.type==="circle3"||m.type==="arc"){if(p.length<3)return null;const cc=circumcircle(p[0],p[1],p[2]);return cc?cc.center:null;}
+    if(m.type==="ellipse"){if(p.length<2)return null;const e=ellipseInfo(p);return{x:e.cx,y:e.cy};}
+    if(m.type==="rect"){if(p.length<2)return null;return{x:(p[0].x+p[1].x)/2,y:(p[0].y+p[1].y)/2};}
+    if(m.type==="polygon"){if(!p.length)return null;return centroid(p);}
+    return null;
+  }
+  // 直线段（用于线段/延长线吸附）
+  function segmentsOf(m){const p=m.pts;switch(m.type){
+    case "line":case "parallel":case "pointline": return p.length>=2?[[p[0],p[1]]]:[];
+    case "angle": {const s=[];if(p.length>=2)s.push([p[1],p[0]]);if(p.length>=3)s.push([p[1],p[2]]);return s;}
+    case "rect": if(p.length>=2){const a=p[0],b=p[1],c1={x:b.x,y:a.y},c2={x:a.x,y:b.y};return[[a,c1],[c1,b],[b,c2],[c2,a]];} return [];
+    case "polygon": {const s=[];for(let i=0;i<p.length;i++)s.push([p[i],p[(i+1)%p.length]]);return s;}
+    default: return [];
+  }}
+  // 收集所有可吸附的直线段（测量图形 + 标尺 + 正在放置的已定点）
+  function allSegments(){
+    const segs=[];
+    S.measures.forEach(m=>{
+      if(m.type==="aux"){if(m.pts.length>=2){const P0=m.pts[0],P1=m.pts[1];const dx=P1.x-P0.x,dy=P1.y-P0.y,len=Math.hypot(dx,dy)||1,ux=dx/len,uy=dy/len,ext=20000;segs.push({A:{x:P0.x-ux*ext,y:P0.y-uy*ext},B:{x:P1.x+ux*ext,y:P1.y+uy*ext},aux:true});}return;}
+      segmentsOf(m).forEach(([A,B])=>segs.push({A,B}));
+    });
+    if(S.calibLine)segs.push({A:S.calibLine.p1,B:S.calibLine.p2});
+    if(S.placing&&S.placing.pts.length>=2){const ps=S.placing.pts;for(let i=0;i<ps.length-2;i++)segs.push({A:ps[i],B:ps[i+1]});}
+    return segs;
+  }
+  function sameSeg(s,e){if(!e)return false;return (s.A.x===e.A.x&&s.A.y===e.A.y&&s.B.x===e.B.x&&s.B.y===e.B.y)||(s.A.x===e.B.x&&s.A.y===e.B.y&&s.B.x===e.A.x&&s.B.y===e.A.y);}
+  function extKey(a){return (a||[]).map(e=>e.A.x+","+e.A.y+","+e.B.x+","+e.B.y).join(";");}
+  function segLineDist(e,ip,sp){const A=e.A,B=e.B,dx=B.x-A.x,dy=B.y-A.y,l2=dx*dx+dy*dy||1e-9;const t=((ip.x-A.x)*dx+(ip.y-A.y)*dy)/l2;const foot={x:A.x+dx*t,y:A.y+dy*t};return{d:dist(imgToScreen(foot),sp),t};}
+  // 决定要显示延长线的线段集合：光标落在线段“本体”上即激活它（顶点处可同时激活多条，
+  // 例如矩形/多边形的角，会同时显示横向与纵向延长线）；之后只要光标仍靠近某条已激活直线
+  // （≤8px），该延长线持续显示并可吸附，其余远离的自动消失。
+  function updateExtSeg(sp){
+    const ip=screenToImg(sp);const segs=allSegments();
+    const near=[];
+    segs.forEach(s=>{if(s.aux)return;const{d,t}=segLineDist(s,ip,sp);if(t>=0&&t<=1&&d<8)near.push(s);});
+    const out=near.map(s=>({A:{x:s.A.x,y:s.A.y},B:{x:s.B.x,y:s.B.y}}));
+    (S.extSegs||[]).forEach(e=>{if(segLineDist(e,ip,sp).d<8&&!out.some(o=>sameSeg(o,e)))out.push(e);});
+    S.extSegs=out;
+  }
+  // 两线段交点
+  function segSegIntersect(A,B,C,D){
+    const rx=B.x-A.x,ry=B.y-A.y,sx=D.x-C.x,sy=D.y-C.y;const den=rx*sy-ry*sx;if(Math.abs(den)<1e-9)return null;
+    const t=((C.x-A.x)*sy-(C.y-A.y)*sx)/den,u=((C.x-A.x)*ry-(C.y-A.y)*rx)/den;
+    if(t>=0&&t<=1&&u>=0&&u<=1)return{x:A.x+rx*t,y:A.y+ry*t};return null;
+  }
+  function allIntersections(){const segs=allSegments(),out=[];for(let i=0;i<segs.length;i++)for(let j=i+1;j<segs.length;j++){const a=segs[i],b=segs[j];if(!a.A||!a.B||!b.A||!b.B)continue;const p=segSegIntersect(a.A,a.B,b.A,b.B);if(p)out.push(p);}return out;}
+  // 沿约束方向的射线吸附：仅返回落在射线上的点，从而在吸附时仍保持平行/垂直约束
+  // ---------- 吸附候选点 ----------
+  // 矩形只存对角两点(pts[0]/pts[1])，另外两个角是派生的。若只拿 pts 当端点候选，光标靠近
+  // 那两个派生角时"无点可吸"，反而被 4 条边的中点抢走 —— 表现就是放大镜里抓到的是边线中点
+  // 而不是角点。这里把矩形四角显式补成端点候选，并给候选分优先级。
+  function cornerPoints(m){
+    if(!m||m.type!=="rect"||!m.pts||m.pts.length<2)return [];
+    const a=m.pts[0],b=m.pts[1];
+    return [{x:a.x,y:a.y},{x:b.x,y:a.y},{x:b.x,y:b.y},{x:a.x,y:b.y}];
+  }
+  // 排序权重 bias：越小越优先。端点/交点 0、中心 2、边中点 6 —— 距离相近时端点胜出，
+  // 边中点只有明显更近（近 6px 以上）才会盖过端点，避免"想抓角却抓到边中间"。
+  const BIAS={point:0,cross:0,center:2,mid:6};
+  function featurePoints(withDerived){
+    const out=[];
+    const push=(q,kind)=>{if(q&&isFinite(q.x)&&isFinite(q.y))out.push({x:q.x,y:q.y,kind,bias:BIAS[kind]||0});};
+    S.measures.forEach(m=>{
+      m.pts.forEach(q=>push(q,"point"));
+      cornerPoints(m).forEach(q=>push(q,"point"));
+      push(shapeCenter(m),"center");
+    });
+    if(S.calibLine){push(S.calibLine.p1,"point");push(S.calibLine.p2,"point");}
+    if(S.placing){const ps=S.placing.pts;for(let i=0;i<ps.length-1;i++)push(ps[i],"point");}
+    if(withDerived!==false){
+      // 线段中点吸附
+      allSegments().forEach(s=>{if(s.A&&s.B)push({x:(s.A.x+s.B.x)/2,y:(s.A.y+s.B.y)/2},"mid");});
+      // 两线交点吸附
+      allIntersections().forEach(p=>push(p,"cross"));
+    }
+    return out;
+  }
+  function snapAlongRay(prev,ux,uy,sp){
+    const us=[];
+    const raySegU=(A,rx,ry)=>{const det=rx*uy-ux*ry;if(Math.abs(det)<1e-9)return null;const ax=A.x-prev.x,ay=A.y-prev.y;const u=(-ax*ry+rx*ay)/det;const t=(ux*ay-uy*ax)/det;if(t<-1e-6||t>1+1e-6)return null;return u;};
+    allSegments().forEach(s=>{if(!s.A||!s.B)return;const u=raySegU(s.A,s.B.x-s.A.x,s.B.y-s.A.y);if(u!=null)us.push({u,bias:0,kind:"cross"});});
+    featurePoints().forEach(f=>{const u=(f.x-prev.x)*ux+(f.y-prev.y)*uy;const foot={x:prev.x+ux*u,y:prev.y+uy*u};if(dist(imgToScreen(foot),imgToScreen(f))<9)us.push({u,bias:f.bias||0,kind:f.kind});});
+    let best=null;
+    us.forEach(it=>{const pt={x:prev.x+ux*it.u,y:prev.y+uy*it.u};const d=dist(imgToScreen(pt),sp)+it.bias;if(d<11&&(!best||d<best.d))best={d,pt,kind:it.kind};});
+    return best?{x:best.pt.x,y:best.pt.y,kind:best.kind}:null;
+  }
+  // 约束开启时的吸附：候选点先各自过一遍约束（矩形/椭圆→正方形、其它→约束角度），
+  // 再挑离光标最近的一个。这样"抓端点"依然满足约束 —— 不会为了吸附把正方形拉成长方形。
+  function snapConstrained(prev,type,sp){
+    let best=null;
+    featurePoints().forEach(f=>{
+      const cp=constrain(prev,f,type);
+      const d=dist(imgToScreen(cp),sp)+(f.bias||0);
+      if(d<11&&(!best||d<best.d))best={d,pt:cp,kind:f.kind};
+    });
+    return best?{x:best.pt.x,y:best.pt.y,kind:best.kind}:null;
+  }
+  // 统一放置点解析：约束开启时保持约束方向（并沿约束射线吸附），否则正常吸附
+  function placePoint(prev,ipRaw,type,conOn,sp){
+    const snap=snapVertex(sp);
+    if(conOn&&prev){
+      if(type==="rect"||type==="ellipse"){
+        const q=snapConstrained(prev,type,sp);
+        if(q)return{pt:{x:q.x,y:q.y},snap:q};
+        return{pt:constrain(prev,ipRaw,type),snap:null};
+      }
+      // 圆类本身不受方向约束影响，约束开启时一样走普通吸附（否则开了约束就莫名抓不到端点）
+      if(type==="circle"||type==="circle3")return{pt:snap||ipRaw,snap:snap||null};
+      const c=constrain(prev,ipRaw,type);
+      const dx=c.x-prev.x,dy=c.y-prev.y,len=Math.hypot(dx,dy);
+      if(len>1e-6){const ux=dx/len,uy=dy/len;const rp=snapAlongRay(prev,ux,uy,sp);if(rp)return{pt:{x:rp.x,y:rp.y},snap:{x:rp.x,y:rp.y,kind:rp.kind||"cross"}};}
+      return{pt:c,snap:null};
+    }
+    return{pt:snap||ipRaw,snap:snap||null};
+  }
+  // 吸附：优先端点/中心（精确点），其次线段本体的垂足；延长线仅在已显示（S.extSegs）时可吸附
+  function snapVertex(sp){
+    const pth=11, lth=8; let best=null;
+    const consider=(q)=>{if(!q)return;const d=dist(imgToScreen(q),sp)+(q.bias||0);if(d<pth&&(!best||d<best.d))best={d,pt:q,kind:q.kind};};
+    featurePoints().forEach(consider);
+    if(best)return{x:best.pt.x,y:best.pt.y,kind:best.kind};
+    // 线段本体 / 延长线：吸到直线的垂足
+    let bestL=null;const ipRaw=screenToImg(sp);
+    const considerSeg=(A,B,allowExt)=>{if(!A||!B)return;const dx=B.x-A.x,dy=B.y-A.y,l2=dx*dx+dy*dy;if(l2<1e-9)return;
+      const t=((ipRaw.x-A.x)*dx+(ipRaw.y-A.y)*dy)/l2;const onBody=t>=0&&t<=1;
+      if(!onBody&&!allowExt)return;
+      const foot={x:A.x+dx*t,y:A.y+dy*t};const d=dist(imgToScreen(foot),sp);
+      if(d<lth&&(!bestL||d<bestL.d))bestL={d,pt:foot};};
+    allSegments().forEach(s=>considerSeg(s.A,s.B,s.aux||(S.extSegs||[]).some(e=>sameSeg(s,e))));
+    if(bestL)return{x:bestL.pt.x,y:bestL.pt.y,kind:"line"};
+    return null;
+  }
+  function placementClick(sp,e){
+    const snap=snapVertex(sp);
+    const ipRaw=screenToImg(sp);
+    if(!S.placing){S.placing={type:S.mode,pts:[snap||ipRaw]};S.adjusting=true;S.cursorImg=snap||ipRaw;S.snapPt=snap;updatePlaceBar();draw();return;}
+    // polygon close by clicking near start
+    if(S.placing.type==="polygon"&&S.placing.pts.length>=3&&dist(imgToScreen(S.placing.pts[0]),sp)<10){finalizePlacing();return;}
+    const prev=S.placing.pts[S.placing.pts.length-1];
+    const r=placePoint(prev,ipRaw,S.placing.type,CON(e),sp);const np=r.pt;
+    S.placing.pts.push(np);S.adjusting=true;S.cursorImg=np;S.snapPt=r.snap;updatePlaceBar();draw();
+  }
+  // 松开鼠标：确定当前正在放置的点，必要时完成图形
+  function placementUp(){
+    if(!S.placing||!S.adjusting)return;
+    S.adjusting=false;
+    const type=S.placing.type;
+    const need=SHAPES[type]?SHAPES[type].click:2;
+    if(type==="calibrate"){if(S.placing.pts.length>=2){S.pendingCalib={p1:S.placing.pts[0],p2:S.placing.pts[1]};S.placing=null;S.cursorImg=null;S.snapPt=null;openDlg();draw();return;}}
+    else if(need>0&&S.placing.pts.length>=need){finalizePlacing();return;}
+    draw();
+  }
+  function finalizePlacing(){
+    if(!S.placing)return;const{type,pts}=S.placing;
+    const need=SHAPES[type].click;
+    if((type==="polygon"&&pts.length<3)||(type==="spline"&&pts.length<2)||(need>0&&pts.length<need)){cancelPlacing();return;}
+    S.counters[type]=(S.counters[type]||0)+1;
+    // 落笔即固化当前全局颜色/线宽：之后改全局样式不会回头改变已经画好的线。
+    // 想要某条重新跟随全局，用列表里那一项的「↺ 全局」按钮（会把 color/lw 置回 null）。
+    const m={id:S.nextId++,type,label:shapeName(type)+S.counters[type],color:S.gColor,lw:S.gLineW,dash:null,labelOff:null,pts:pts.map(p=>({x:p.x,y:p.y}))};
+    S.measures.push(m);S.selId=m.id;S.active=-1;S.placing=null;S.adjusting=false;S.cursorImg=null;S.snapPt=null;S.extSegs=[];
+    updatePlaceBar();renderList();draw();commit();
+    if(!S.pxPerUnit&&m.type!=="aux"&&computeShape(m).kind!=="angle")toast(L("toastNoScale"));
+  }
+  function cancelPlacing(){S.placing=null;S.adjusting=false;S.cursorImg=null;S.snapPt=null;S.extSegs=[];updatePlaceBar();draw();}
+  // 双击/双击闭合图形时，最后一点往往是"为了收尾"才点的，落在前一点附近，需要剔除。
+  // 比较必须在【屏幕像素】下进行：双击判定用的是屏幕像素，若拿图像像素比（旧代码 <2），
+  // 缩小视图时 2 图像 px 远小于判定阈值 24 屏幕 px，去重就会失效，多边形会多出一个退化顶点。
+  const DUP_TAP_PX=24;
+  function popLastIfDuplicate(pts){
+    if(!pts||pts.length<2)return false;
+    const a=imgToScreen(pts[pts.length-1]),b=imgToScreen(pts[pts.length-2]);
+    if(dist(a,b)<DUP_TAP_PX){pts.pop();return true;}
+    return false;
+  }
+
+  // ---------- undo / redo history ----------
+  let _hist=[], _hi=-1; const HIST_MAX=200;
+  function _snap(){return JSON.stringify({m:S.measures,cl:S.calibLine,pu:S.pxPerUnit,un:S.unit,ct:S.counters,ni:S.nextId,lk:S.scaleLocked});}
+  function _restore(s){const d=JSON.parse(s);S.measures=d.m;S.calibLine=d.cl;S.pxPerUnit=d.pu;S.unit=d.un;S.counters=d.ct||{};S.nextId=d.ni||1;S.scaleLocked=!!d.lk;S.selId=null;S.active=-1;S.placing=null;S.cursorImg=null;S.snapPt=null;S.extSegs=[];updateScaleUI();renderList();draw();}
+  function histReset(){_hist=[_snap()];_hi=0;updateUndoUI();}
+  function commit(){_hist=_hist.slice(0,_hi+1);_hist.push(_snap());_hi=_hist.length-1;if(_hist.length>HIST_MAX){_hist.shift();_hi--;}updateUndoUI();}
+  function undo(){if(_hi<=0)return;_hi--;_restore(_hist[_hi]);updateUndoUI();}
+  function redo(){if(_hi>=_hist.length-1)return;_hi++;_restore(_hist[_hi]);updateUndoUI();}
+  function updateUndoUI(){const u=$("btnUndo"),r=$("btnRedo");if(u)u.disabled=_hi<=0;if(r)r.disabled=_hi>=_hist.length-1;}
+
+  // ---- select / drag / nudge ----
+  function getM(id){return S.measures.find(m=>m.id===id);}
+  function selectDown(sp,e){
+    if(S.selId!=null){const m=getM(S.selId);if(m){const v=handleAt(m,sp);if(v>=0){S.active=v;S.drag={kind:"handle",mid:m.id,vtx:v,startSp:sp,orig:m.pts.map(p=>({...p}))};return;}if(hitLabel(m,sp)){S.drag={kind:"label",mid:m.id,startSp:sp,origOff:{...(m.labelOff||{x:0,y:0})}};return;}}}
+    for(let i=S.measures.length-1;i>=0;i--){const m=S.measures[i];const v=handleAt(m,sp);if(v>=0){S.selId=m.id;S.active=v;S.drag={kind:"handle",mid:m.id,vtx:v,startSp:sp,orig:m.pts.map(p=>({...p}))};renderList();draw();return;}if(hitLabel(m,sp)){S.selId=m.id;S.active=-1;S.drag={kind:"label",mid:m.id,startSp:sp,origOff:{...(m.labelOff||{x:0,y:0})}};renderList();draw();return;}if(hitBody(m,sp)){S.selId=m.id;S.active=-1;S.drag={kind:"shape",mid:m.id,startSp:sp,orig:m.pts.map(p=>({...p}))};renderList();draw();return;}}
+    S.selId=null;S.active=-1;renderList();draw();
+  }
+  function dragMove(sp,e){
+    const m=getM(S.drag.mid);if(!m)return;
+    S.dragMoved=true;
+    const dx=(sp.x-S.drag.startSp.x)/S.view.scale,dy=(sp.y-S.drag.startSp.y)/S.view.scale;
+    if(S.drag.kind==="label"){m.labelOff={x:S.drag.origOff.x+dx,y:S.drag.origOff.y+dy};draw();return;}
+    if(S.drag.kind==="handle"){let np={x:S.drag.orig[S.drag.vtx].x+dx,y:S.drag.orig[S.drag.vtx].y+dy};if(CON(e)&&m.pts.length===2){const other=S.drag.orig[1-S.drag.vtx];np=constrain(other,np,m.type);}m.pts[S.drag.vtx]=np;}
+    else{m.pts=S.drag.orig.map(p=>({x:p.x+dx,y:p.y+dy}));}
+    renderList();draw();
+  }
+  // 微调选中图形/顶点（键盘方向键 + 悬浮方向键共用）
+  // 入参 dx/dy 是【屏幕像素】：内部换算成图像像素。否则缩小时（scale<1）一次 1px
+  // 在屏幕上不足 1 个物理像素，按上去像失灵；放大时又会跨好几个像素。
+  function nudge(dx,dy){
+    if(S.selId==null)return;const m=getM(S.selId);if(!m)return;
+    const s=1/(S.view.scale||1);
+    if(S.active>=0){m.pts[S.active].x+=dx*s;m.pts[S.active].y+=dy*s;}
+    else{m.pts.forEach(p=>{p.x+=dx*s;p.y+=dy*s;});}
+    S.nudged=true;renderList();draw();
+    if(S.loupe){const fp=(S.active>=0)?imgToScreen(m.pts[S.active]):imgToScreen(centroid(m.pts));drawLoupe(fp);}
+  }
+
+  // insert / delete vertices for polygon & spline
+  function footSeg(P,A,B){const dx=B.x-A.x,dy=B.y-A.y,l2=dx*dx+dy*dy||1e-9;let t=((P.x-A.x)*dx+(P.y-A.y)*dy)/l2;t=Math.max(0,Math.min(1,t));return{x:A.x+dx*t,y:A.y+dy*t};}
+  function nearestEdge(m,sp){const P=m.pts.map(imgToScreen);let best=null;const consider=(a,b,insIdx)=>{const d=pointSegDist(sp,P[a],P[b]);if(d<12&&(!best||d<best.d)){best={d,index:insIdx,pt:screenToImg(footSeg(sp,P[a],P[b]))};}};if(m.type==="polygon"){for(let i=0;i<P.length;i++)consider(i,(i+1)%P.length,i+1);}else{for(let i=0;i<P.length-1;i++)consider(i,i+1,i+1);}return best;}
+  function tryInsertVertex(sp){const cands=[];if(S.selId!=null){const s=getM(S.selId);if(s)cands.push(s);}for(let i=S.measures.length-1;i>=0;i--){if(!cands.includes(S.measures[i]))cands.push(S.measures[i]);}for(const m of cands){if(!m||(m.type!=="polygon"&&m.type!=="spline"))continue;const ins=nearestEdge(m,sp);if(ins){m.pts.splice(ins.index,0,ins.pt);S.selId=m.id;S.active=ins.index;renderList();draw();commit();toast(L("toastVertexAdded"));return true;}}return false;}
+
+  window.addEventListener("keydown",e=>{
+    if((e.ctrlKey||e.metaKey)&&!e.altKey){const k=e.key.toLowerCase();if(k==="z"&&!e.shiftKey){undo();e.preventDefault();return;}if(k==="y"||(k==="z"&&e.shiftKey)){redo();e.preventDefault();return;}}
+    if(document.activeElement&&document.activeElement.tagName==="INPUT")return;
+    if(e.key==="Escape"){if($("helpMask").classList.contains("on")){closeHelp();return;}if(S.placing)cancelPlacing();return;}
+    if((e.key==="Enter")&&S.placing){finalizePlacing();return;}
+    if((e.key==="Delete"||e.key==="Backspace")&&S.selId!=null){const m=getM(S.selId);if(m&&S.active>=0&&(m.type==="polygon"||m.type==="spline")){const min=m.type==="polygon"?3:2;if(m.pts.length>min){m.pts.splice(S.active,1);S.active=-1;renderList();draw();commit();e.preventDefault();return;}}delMeasure(S.selId);e.preventDefault();return;}
+    if(S.selId!=null&&e.key.startsWith("Arrow")){const step=CON(e)?10:1;const d={ArrowLeft:[-step,0],ArrowRight:[step,0],ArrowUp:[0,-step],ArrowDown:[0,step]}[e.key];if(!d)return;nudge(d[0],d[1]);e.preventDefault();}
+  });
+  window.addEventListener("keyup",e=>{if(e.key&&e.key.startsWith("Arrow")&&S.nudged){S.nudged=false;commit();}});
+
+  function updateStatus(sp){const sb=$("statusbar");if(!S.img){sb.style.display="none";return;}sb.style.display="block";const ip=sp?screenToImg(sp):{x:0,y:0};let s=L("zoom")+` <span class="k">${Math.round(S.view.scale*100)}%</span>`;if(sp)s+=`　·　`+L("pixel")+` <span class="k">${Math.round(ip.x)}, ${Math.round(ip.y)}</span>`;sb.innerHTML=s;}
+
+  // ---------- loupe ----------
+  // 放大镜位图同样按 DPR 放大，否则放大镜自己在高分屏上也是糊的
+  const LOUPE_BASE=152, LOUPE_TOUCH=180; // 手指比鼠标粗，触屏给更大的窗口
+  let LOUPE_L=LOUPE_BASE;
+  function syncLoupeDpr(L){
+    const w=Math.round((L||LOUPE_BASE)*DPR);
+    if(loupeEl.width!==w){loupeEl.width=w;loupeEl.height=w;}
+  }
+  // touch=true 时把放大镜挪到触点【上方】：手指和手掌会挡住右下方，鼠标则不会。
+  function drawLoupe(sp,touch){
+    if(!S.loupe||!S.img||!sp){loupeEl.style.display="none";return;}
+    loupeEl.style.display="block";
+    const L=touch?LOUPE_TOUCH:LOUPE_BASE,M=4.5,r=stage.getBoundingClientRect();
+    LOUPE_L=L;
+    loupeEl.style.width=L+"px";loupeEl.style.height=L+"px";
+    let lx,ly;
+    if(touch){
+      lx=sp.x-L/2; ly=sp.y-26-L;                                  // 手指正上方
+      if(ly<4)ly=sp.y+26;                                          // 上方放不下才退到下方
+      lx=Math.max(4,Math.min(r.width-L-4,lx));
+      ly=Math.max(4,Math.min(r.height-L-4,ly));
+    }else{
+      lx=sp.x+22; ly=sp.y+22;
+      if(lx+L>r.width)lx=sp.x-22-L;
+      if(ly+L>r.height)ly=sp.y-22-L;
+    }
+    loupeEl.style.left=lx+"px";loupeEl.style.top=ly+"px";
+    syncLoupeDpr(L);
+    const lg=loupeEl.getContext("2d");
+    lg.setTransform(DPR,0,0,DPR,0,0); // 之后一律用 CSS 像素坐标作画
+    lg.clearRect(0,0,L,L);
+    lg.save();
+    lg.beginPath();lg.arc(L/2,L/2,L/2-2,0,7);lg.clip();
+    lg.fillStyle="#111";lg.fillRect(0,0,L,L);
+    // 关键：这里不再截图主画布再拉伸（那样线条会变成马赛克），
+    // 而是套一层「以光标为中心放大 M 倍」的变换，用同一套绘制命令重画一遍。
+    // 矢量图元(lineTo/stroke/text)在 CTM 下会被重新光栅化，所以放大后依然锐利。
+    lg.translate(L/2,L/2);lg.scale(M,M);lg.translate(-sp.x,-sp.y);
+    lg.imageSmoothingEnabled=(S.view.scale*M<1); // 放大时保留清晰像素边界，缩小时才开启插值
+    try{lg.drawImage(S.img,S.view.ox,S.view.oy,S.img.width*S.view.scale,S.img.height*S.view.scale);}catch(_){}
+    lg.imageSmoothingEnabled=true;
+    paintOverlay(lg,imgToScreen,{k:S.view.scale,handles:true});
+    lg.restore();
+    lg.setTransform(DPR,0,0,DPR,0,0);
+    lg.strokeStyle="rgba(255,80,90,.95)";lg.lineWidth=1;lg.beginPath();lg.moveTo(L/2,L/2-11);lg.lineTo(L/2,L/2+11);lg.moveTo(L/2-11,L/2);lg.lineTo(L/2+11,L/2);lg.stroke();
+    lg.strokeStyle="rgba(255,255,255,.3)";lg.beginPath();lg.arc(L/2,L/2,6,0,7);lg.stroke();
+    // 真实落点标记：约束（正方形/角度）或吸附会让"真正落下去的点"和手指/光标错开，
+    // 而放大镜中心画的是手指位置。两者差得远时额外标出落点，免得看着像抓在边线中间。
+    if(S.placing&&S.cursorImg){
+      const cp=imgToScreen(S.cursorImg);
+      const px=(cp.x-sp.x)*M+L/2, py=(cp.y-sp.y)*M+L/2;
+      if(Math.hypot(px-L/2,py-L/2)>3&&px>6&&px<L-6&&py>6&&py<L-6){
+        lg.fillStyle="rgba(76,154,255,.95)";lg.fillRect(px-3,py-3,6,6);
+        lg.strokeStyle="rgba(255,255,255,.9)";lg.lineWidth=1;lg.strokeRect(px-3.5,py-3.5,7,7);
+      }
+    }
+  }
+
+  // ---------- list ----------
+  function renderList(){
+    const wrap=$("mlist");wrap.innerHTML="";$("mcount").textContent=S.measures.length;$("btnDel").disabled=S.selId==null;
+    updateFloatUI();
+    if(!S.measures.length){wrap.innerHTML='<div class="empty">'+L("emptyList")+'</div>';$("totalLen").textContent="—";return;}
+    let total=0,any=false;
+    S.measures.forEach(m=>{
+      const c=computeShape(m);if(c.kind==="length"&&c.value!=null){total+=c.value;any=true;}
+      const effColor=m.color||S.gColor, effW=m.lw||S.gLineW, custom=(m.color!=null||m.lw!=null);
+      const el=document.createElement("div");el.className="mitem"+(m.id===S.selId?" sel":"");el.dataset.mid=m.id;
+      el.innerHTML=`<div class="top"><div class="name"><span class="swatch" style="background:${effColor}"></span>
+        <input class="lbl" value="${esc(m.label)}"></div><span class="badge">${esc(shapeName(m.type))}</span>
+        <button class="del" title="${esc(L("delete"))}">✕</button></div>
+        <div class="top"><span class="det">${esc(c.detail||"")}</span><span class="len">${esc(c.text)}</span></div>
+        <div class="style"><input type="color" class="mcolor" value="${effColor}" title="${esc(L("thisColor"))}">
+        <input type="range" class="mw" min="0.5" max="12" step="0.1" value="${fmt(effW)}" title="${esc(L("thisWidth"))}"><input type="number" class="mwbox" min="0.5" max="12" step="0.1" value="${fmt(effW)}" title="${esc(L("thisWidth"))}"><span class="cap">px</span>
+        <button class="rst" title="${esc(L("resetGlobalTitle"))}" ${custom?"":"disabled"}>${esc(L("globalBtn"))}</button></div>${m.type==="aux"?`
+        <div class="style dashrow"><span class="cap dashlbl">${esc(L("dashGap"))}</span><input type="range" class="dashr" min="1" max="24" step="1" value="${m.dash!=null?m.dash:5}" title="${esc(L("dashGap"))}"><span class="cap dashval">${m.dash!=null?m.dash:5}</span></div>`:""}`;
+      el.addEventListener("click",ev=>{if(ev.target.classList.contains("lbl")||ev.target.classList.contains("del"))return;S.selId=m.id;S.active=-1;if(S.mode!=="select")setMode("select");renderList();draw();});
+      const inp=el.querySelector(".lbl");inp.addEventListener("input",()=>{m.label=inp.value;draw();});inp.addEventListener("change",commit);inp.addEventListener("click",ev=>ev.stopPropagation());
+      const cin=el.querySelector(".mcolor");cin.addEventListener("input",()=>{m.color=cin.value;el.querySelector(".swatch").style.background=cin.value;el.querySelector(".rst").disabled=false;draw();});cin.addEventListener("change",commit);cin.addEventListener("click",ev=>ev.stopPropagation());
+      const win=el.querySelector(".mw");const wb=el.querySelector(".mwbox");
+      const setW=v=>{if(!(v>0))return;v=Math.min(12,Math.max(0.5,v));m.lw=v;el.querySelector(".rst").disabled=false;draw();};
+      win.addEventListener("input",()=>{setW(parseFloat(win.value));wb.value=fmt(m.lw);});win.addEventListener("change",commit);win.addEventListener("click",ev=>ev.stopPropagation());
+      wb.addEventListener("input",()=>{const v=parseFloat(wb.value);if(isNaN(v))return;setW(v);win.value=m.lw;});wb.addEventListener("change",()=>{let v=parseFloat(wb.value);if(isNaN(v)||v<=0)v=m.lw||S.gLineW;setW(v);win.value=m.lw;wb.value=fmt(m.lw);commit();});wb.addEventListener("click",ev=>ev.stopPropagation());
+      el.querySelector(".rst").addEventListener("click",ev=>{ev.stopPropagation();m.color=null;m.lw=null;renderList();draw();commit();});
+      if(m.type==="aux"){const dr=el.querySelector(".dashr");dr.addEventListener("input",()=>{m.dash=parseInt(dr.value,10);el.querySelector(".dashval").textContent=dr.value;draw();});dr.addEventListener("change",commit);dr.addEventListener("click",ev=>ev.stopPropagation());}
+      el.querySelector(".del").addEventListener("click",ev=>{ev.stopPropagation();delMeasure(m.id);});
+      wrap.appendChild(el);
+    });
+    $("totalLen").textContent=any?fmt(total)+S.unit:"—";
+  }
+  function esc(s){return(s+"").replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+  function delMeasure(id){S.measures=S.measures.filter(m=>m.id!==id);if(S.selId===id){S.selId=null;S.active=-1;}renderList();draw();commit();}
+
+  function updateScaleUI(){if(S.pxPerUnit){$("scaleVal").textContent=fmt(S.pxPerUnit)+" px / "+S.unit;$("scaleVal").className="val";$("scaleRow2").style.display="flex";$("scaleUnit").textContent=fmt(1/S.pxPerUnit)+" "+S.unit;}else{$("scaleVal").textContent=L("notCalibratedShort");$("scaleVal").className="val noscale";$("scaleRow2").style.display="none";}updateLockUI();}
+  function updateLockUI(){
+    const row=$("lockRow"),btn=$("btnScaleLock");if(!row||!btn)return;
+    if(!S.pxPerUnit){row.style.display="none";return;}
+    row.style.display="flex";
+    btn.textContent=S.scaleLocked?L("lockLocked"):L("lockUnlocked");
+    btn.className="lockbtn "+(S.scaleLocked?"locked":"unlocked");
+    const cb=$("btnCalib");if(cb)cb.classList.toggle("disabled",S.scaleLocked);
+  }
+
+  // ---------- modes ----------
+  function setMode(m){
+    if(m==="calibrate"&&S.scaleLocked){toast(L("toastScaleLocked"));return;}
+    if(S.placing)cancelPlacing();
+    S.mode=m;S.snapPt=null;S.extSegs=[];
+    if(m==="calibrate"&&!S.loupe){S.loupe=true;$("btnLoupe").classList.add("active");if(S.mouseSp)drawLoupe(S.mouseSp);}
+    document.querySelectorAll("[data-mode]").forEach(b=>b.classList.toggle("active",b.dataset.mode===m));
+    canvas.style.cursor=m==="pan"?"grab":(m==="select"?"default":"crosshair");
+    const th=$("toolhint");
+    if(SHAPES[m]){th.style.display="block";th.innerHTML=`<b>${esc(shapeName(m))}</b>　${esc(shapeHint(m))}`;}
+    else if(m==="calibrate"){th.style.display="block";th.innerHTML=`<b>${esc(L("setScale"))}</b>　${esc(L("hintCalib"))}`;}
+    else if(m==="select"){th.style.display="block";th.innerHTML=`<b>${esc(L("toolSelectName"))}</b>　${esc(L("hintSelect"))}`;}
+    else th.style.display="none";
+    draw();
+  }
+  document.querySelectorAll("[data-mode]").forEach(b=>b.addEventListener("click",()=>{if(!S.img&&b.dataset.mode!=="select"){toast(L("toastNeedImg"));return;}setMode(b.dataset.mode);}));
+  $("btnLoupe").addEventListener("click",()=>{S.loupe=!S.loupe;$("btnLoupe").classList.toggle("active",S.loupe);if(!S.loupe)loupeEl.style.display="none";else if(S.mouseSp)drawLoupe(S.mouseSp);});
+  $("btnRadius").addEventListener("click",()=>{S.showRadius=!S.showRadius;$("btnRadius").classList.toggle("active",S.showRadius);draw();});
+  function closeMenus(){document.querySelectorAll(".menuwrap.open").forEach(w=>w.classList.remove("open"));}
+  function setMenuSel(menuId,v){var m=$(menuId);if(!m)return;m.querySelectorAll(".menuitem").forEach(it=>it.classList.toggle("sel",it.getAttribute("data-val")===v));}
+  function setupMenu(wrapId,btnId,menuId,onSelect){
+    var wrap=$(wrapId),btn=$(btnId),menu=$(menuId);
+    btn.addEventListener("click",e=>{e.stopPropagation();var wasOpen=wrap.classList.contains("open");closeMenus();if(!wasOpen)wrap.classList.add("open");});
+    menu.querySelectorAll(".menuitem").forEach(it=>{it.addEventListener("click",e=>{e.stopPropagation();var v=it.getAttribute("data-val");setMenuSel(menuId,v);wrap.classList.remove("open");onSelect(v);});});
+  }
+  setupMenu("langWrap","langBtn","langMenu",v=>{S.langPref=v;S.lang=resolveLang();applyStaticLang();renderList();updateScaleUI();setMode(S.mode);if(S.mouseSp)updateStatus(S.mouseSp);});
+  setupMenu("themeWrap","themeBtn","themeMenu",v=>{S.themePref=v;applyTheme();});
+  document.addEventListener("click",closeMenus);
+  $("gColor").addEventListener("input",e=>{S.gColor=e.target.value;markSwatches();renderList();draw();});
+  // 常用标准色板：点一下即设为全局颜色
+  function buildSwatches(){
+    const wrap=$("gSwatches");if(!wrap)return;wrap.innerHTML="";
+    STD_COLORS.forEach(c=>{
+      const b=document.createElement("button");
+      b.type="button";b.className="sw";b.style.background=c;b.dataset.color=c;
+      b.setAttribute("data-c",c);b.title=c;
+      b.addEventListener("click",()=>{setGlobalColor(c);});
+      wrap.appendChild(b);
+    });
+    markSwatches();
+  }
+  function setGlobalColor(c){S.gColor=c;const gi=$("gColor");if(gi)gi.value=c;markSwatches();renderList();draw();}
+  function markSwatches(){
+    const cur=(S.gColor||"").toLowerCase();
+    document.querySelectorAll("#gSwatches .sw").forEach(b=>b.classList.toggle("sel",(b.dataset.color||"").toLowerCase()===cur));
+  }
+  buildSwatches();
+  $("gWidth").addEventListener("input",e=>{S.gLineW=parseFloat(e.target.value);$("gWidthNum").value=fmt(S.gLineW);syncGlobalWidthDisplays();draw();});
+  $("gWidthNum").addEventListener("input",e=>{let v=parseFloat(e.target.value);if(isNaN(v))return;v=Math.min(12,Math.max(0.5,v));S.gLineW=v;$("gWidth").value=v;syncGlobalWidthDisplays();draw();});
+  $("gWidthNum").addEventListener("change",e=>{let v=parseFloat(e.target.value);if(isNaN(v)||v<=0)v=S.gLineW;v=Math.min(12,Math.max(0.5,v));S.gLineW=v;$("gWidthNum").value=fmt(v);$("gWidth").value=v;syncGlobalWidthDisplays();draw();});
+  $("btnScaleLock").addEventListener("click",()=>{if(!S.pxPerUnit)return;S.scaleLocked=!S.scaleLocked;updateLockUI();toast(S.scaleLocked?L("lockLocked"):L("toastScaleUnlocked"));});
+  function syncGlobalWidthDisplays(){
+    document.querySelectorAll("#mlist .mitem").forEach(el=>{
+      const id=parseInt(el.dataset.mid,10);const m=S.measures.find(x=>x.id===id);
+      if(!m||m.lw!=null)return;
+      const s=el.querySelector(".mw");if(s)s.value=S.gLineW;
+      const v=el.querySelector(".mwbox");if(v)v.value=fmt(S.gLineW);
+    });
+  }
+  // 自定义约束角度（10个输入框，空=不启用；平行/垂直始终内置）
+  function buildAngleGrid(){
+    const grid=$("angleGrid");if(!grid)return;grid.innerHTML="";
+    for(let i=0;i<10;i++){
+      const cur=(S.customAngles&&S.customAngles[i]!=null&&S.customAngles[i]!=="")?S.customAngles[i]:"";
+      const row=document.createElement("div");row.className="arow";
+      const sl=document.createElement("input");sl.type="range";sl.className="asl";sl.min="0";sl.max="180";sl.step="1";sl.value=(cur===""?0:cur);
+      const inp=document.createElement("input");inp.type="number";inp.className="ain";inp.min="0";inp.max="180";inp.step="1";inp.placeholder="—";inp.value=cur;
+      const set=(v,fromSlider)=>{if(!S.customAngles)S.customAngles=[];S.customAngles[i]=v;if(fromSlider)inp.value=v;else sl.value=(v===""?0:v);};
+      sl.addEventListener("input",e=>set(e.target.value,true));
+      inp.addEventListener("input",e=>set(e.target.value,false));
+      row.appendChild(sl);row.appendChild(inp);grid.appendChild(row);
+    }
+  }
+  buildAngleGrid();
+
+  // ---------- dialog ----------
+  function openDlg(){$("mask").classList.add("on");$("dlgInput").value=S.calibLine?S.calibLine.realLen:"";$("dlgUnit").value=S.unit;setTimeout(()=>$("dlgInput").focus(),30);}
+  function closeDlg(){$("mask").classList.remove("on");S.pendingCalib=null;}
+  $("dlgCancel").onclick=closeDlg;
+  $("mask").addEventListener("click",e=>{if(e.target===$("mask"))closeDlg();});
+  function openHelp(){$("helpMask").classList.add("on");$("helpBody").scrollTop=0;}
+  function closeHelp(){$("helpMask").classList.remove("on");}
+  $("btnHelp").onclick=openHelp;
+  $("helpClose").onclick=closeHelp;
+  $("helpMask").addEventListener("click",e=>{if(e.target===$("helpMask"))closeHelp();});
+  $("dlgInput").addEventListener("keydown",e=>{if(e.key==="Enter")$("dlgOk").click();});
+  $("dlgOk").onclick=()=>{const v=parseFloat($("dlgInput").value),u=$("dlgUnit").value;if(!(v>0)){toast(L("toastLenPositive"));return;}const line=S.pendingCalib||(S.calibLine&&{p1:S.calibLine.p1,p2:S.calibLine.p2});if(!line){closeDlg();return;}S.pxPerUnit=dist(line.p1,line.p2)/v;S.unit=u;S.calibLine={p1:line.p1,p2:line.p2,realLen:v,unit:u};S.scaleLocked=true;closeDlg();updateScaleUI();renderList();draw();commit();toast(L("toastScaleSet",u,fmt(S.pxPerUnit)));setMode("line");};
+
+  // ---------- image ----------
+  function loadImage(dataURL,name){const img=new Image();img.onload=()=>{S.img=img;S.imgData=dataURL;S.imgName=name||"image";$("hint").style.display="none";fitView();updateStatus();};img.onerror=()=>toast(L("toastImgFail"));img.src=dataURL;}
+  function readImageFile(f){if(!f)return;if(f.type&&f.type.indexOf("image/")!==0){toast(L("toastDropUnsupported"));return;}const rd=new FileReader();rd.onload=()=>loadImage(rd.result,f.name);rd.onerror=()=>toast(L("toastImgFail"));rd.readAsDataURL(f);}
+  function isProjectFile(f){return !!f&&(/\.json$/i.test(f.name||"")||f.type==="application/json");}
+  $("btnOpen").onclick=()=>$("fileImg").click();
+  $("fileImg").onchange=e=>{const f=e.target.files[0];e.target.value="";readImageFile(f);};
+  // 拖放导入：把图片或工程文件拖进窗口任意位置即可
+  (function(){
+    const dm=$("dropMask");let depth=0;
+    const hasFile=e=>!!(e.dataTransfer&&e.dataTransfer.types&&Array.prototype.indexOf.call(e.dataTransfer.types,"Files")>=0);
+    const hide=()=>{depth=0;if(dm)dm.classList.remove("on");};
+    window.addEventListener("dragenter",e=>{if(!hasFile(e))return;e.preventDefault();depth++;if(dm)dm.classList.add("on");});
+    window.addEventListener("dragover",e=>{if(!hasFile(e))return;e.preventDefault();if(e.dataTransfer)e.dataTransfer.dropEffect="copy";});
+    window.addEventListener("dragleave",e=>{if(!hasFile(e))return;depth=Math.max(0,depth-1);if(!depth)hide();});
+    window.addEventListener("drop",e=>{
+      if(!hasFile(e))return;e.preventDefault();hide();if(S.placing)cancelPlacing();
+      const fs=e.dataTransfer&&e.dataTransfer.files;if(!fs||!fs.length)return;
+      const f=fs[0];
+      if(isProjectFile(f))readJsonFile(f);
+      else if(f.type&&f.type.indexOf("image/")===0)readImageFile(f);
+      else toast(L("toastDropUnsupported"));
+    });
+    window.addEventListener("dragend",hide);
+  })();
+  // 剪贴板粘贴图片（Ctrl+V）：截图后直接贴图测量
+  window.addEventListener("paste",e=>{
+    const ae=document.activeElement;if(ae&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName))return;
+    const cd=e.clipboardData;if(!cd||!cd.items)return;
+    for(let i=0;i<cd.items.length;i++){const it=cd.items[i];
+      if(it.type&&it.type.indexOf("image/")===0){const f=it.getAsFile&&it.getAsFile();if(f){e.preventDefault();readImageFile(f);toast(L("toastPasted"));return;}}
+    }
+  });
+
+  // ---------- toolbar actions ----------
+  $("btnZoomFit").onclick=fitView;
+  $("btnDel").onclick=()=>{if(S.selId!=null)delMeasure(S.selId);};
+  $("btnClear").onclick=()=>{if(!S.measures.length){toast(L("toastNoData"));return;}if(confirm(L("confirmClear"))){S.measures=[];S.selId=null;S.active=-1;renderList();draw();commit();}};
+  $("btnUndo").onclick=undo;
+  $("btnRedo").onclick=redo;
+
+  // ---------- JSON ----------
+  $("btnExport").onclick=()=>{if(!S.img){toast(L("toastNeedImg"));return;}const data={app:"CameraMeasure",version:3,exportedAt:new Date().toISOString(),image:{name:S.imgName,width:S.img.width,height:S.img.height,dataURL:S.imgData},unit:S.unit,pxPerUnit:S.pxPerUnit,calibration:S.calibLine,scaleLocked:S.scaleLocked,style:{gColor:S.gColor,gLineW:S.gLineW},langPref:S.langPref,themePref:S.themePref,measures:S.measures.map(m=>({type:m.type,label:m.label,color:m.color,lw:m.lw,dash:m.dash,labelOff:m.labelOff,pts:m.pts}))};const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=(S.imgName.replace(/\.[^.]+$/,"")||"measure")+".measure.json";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast(L("toastExported"));};
+  $("btnImport").onclick=()=>$("fileJson").click();
+  $("fileJson").onchange=e=>{const f=e.target.files[0];e.target.value="";readJsonFile(f);};
+  function readJsonFile(f){if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const d=JSON.parse(rd.result);S.unit=d.unit||"cm";S.pxPerUnit=d.pxPerUnit??null;S.calibLine=d.calibration||null;S.scaleLocked=(d.scaleLocked!=null)?!!d.scaleLocked:(d.pxPerUnit!=null);if(d.style){if(d.style.gColor)S.gColor=d.style.gColor;if(d.style.gLineW)S.gLineW=d.style.gLineW;}if(d.langPref==="zh"||d.langPref==="en"||d.langPref==="auto"){S.langPref=d.langPref;S.lang=resolveLang();setMenuSel("langMenu",S.langPref);applyStaticLang();}if(d.themePref==="light"||d.themePref==="dark"||d.themePref==="auto"){S.themePref=d.themePref;setMenuSel("themeMenu",S.themePref);applyTheme();}$("gColor").value=S.gColor;$("gWidth").value=S.gLineW;$("gWidthNum").value=fmt(S.gLineW);markSwatches();S.counters={};S.measures=(d.measures||[]).map((m,i)=>{const type=m.type||"line";S.counters[type]=(S.counters[type]||0)+1;return{id:S.nextId++,type,label:m.label||shapeName(type)+S.counters[type],color:m.color??S.gColor,lw:m.lw??S.gLineW,dash:m.dash??null,labelOff:m.labelOff||null,pts:m.pts||[]};});S.selId=null;S.active=-1;updateScaleUI();renderList();if(d.image&&d.image.dataURL)loadImage(d.image.dataURL,d.image.name);else draw();histReset();toast(L("toastImported"));}catch(err){toast(L("toastImportFail"));}};rd.onerror=()=>toast(L("toastImportFail"));rd.readAsText(f);};
+
+  // ---------- PDF ----------
+  $("btnPdf").onclick=()=>{if(!S.img){toast(L("toastNeedImg"));return;}if(!window.jspdf){toast(L("toastPdfNoLib"));return;}try{exportPdf();}catch(err){console.error(err);toast(L("toastPdfErr"));}};
+  $("btnPng").onclick=()=>{if(!S.img){toast(L("toastNeedImg"));return;}try{exportPng();}catch(err){console.error(err);toast(L("toastPngErr"));}};
+  $("btnCsv").onclick=()=>{if(!S.measures.length){toast(L("toastNoData"));return;}try{exportCsv();}catch(err){console.error(err);toast(L("toastPngErr"));}};
+  // 导出测量清单为 CSV（带 BOM，Excel 直接打开不乱码）
+  function exportCsv(){
+    const cell=s=>{const v=(""+(s==null?"":s));return /[",\r\n\t]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
+    const rows=[[L("csvLabel"),L("csvType"),L("csvValue"),L("csvDetail")]];
+    let total=0,any=false;
+    S.measures.forEach(m=>{
+      const c=computeShape(m);
+      if(c.kind==="length"&&c.value!=null){total+=c.value;any=true;}
+      rows.push([m.label||"",shapeName(m.type),c.text||"",c.detail||""]);
+    });
+    if(any)rows.push([L("totalLabel"),"",fmt(total)+" "+S.unit,""]);
+    rows.push([L("csvScale"),"",S.pxPerUnit?fmt(S.pxPerUnit)+" px / "+S.unit:L("notCalibratedShort"),""]);
+    const csv="\uFEFF"+rows.map(r=>r.map(cell).join(",")).join("\r\n");
+    const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
+    const a=document.createElement("a");a.href=URL.createObjectURL(blob);
+    a.download=((S.imgName||"").replace(/\.[^.]+$/,"")||"measure")+"_measurements.csv";
+    document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+    toast(L("toastCsvDone"));
+  }
+  function exportPng(){
+    const sc=Math.min(3,Math.max(1,2000/Math.max(S.img.width,S.img.height)));
+    const oc=renderAnnotated(sc);
+    const name=((S.imgName||"").replace(/\.[^.]+$/,"")||"measure")+"_annotated.png";
+    const done=url=>{const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();toast(L("toastPngDone"));};
+    if(oc.toBlob)oc.toBlob(b=>{if(!b){done(oc.toDataURL("image/png"));return;}const u=URL.createObjectURL(b);done(u);setTimeout(()=>URL.revokeObjectURL(u),4000);},"image/png");
+    else done(oc.toDataURL("image/png"));
+  }
+  function renderAnnotated(scale){const w=Math.round(S.img.width*scale),h=Math.round(S.img.height*scale);const oc=document.createElement("canvas");oc.width=w;oc.height=h;const g=oc.getContext("2d");g.drawImage(S.img,0,0,w,h);const T=p=>({x:p.x*scale,y:p.y*scale});const lw=Math.max(2,2.4*scale),fs=Math.max(12,13*scale);if(S.calibLine)renderShape(g,{type:"line",pts:[S.calibLine.p1,S.calibLine.p2],color:"#e0a800"},T,{k:scale,lw,fs,dash:true,forceText:calibText()});S.measures.forEach(m=>renderShape(g,m,T,{k:scale,lw:Math.max(1,(m.lw||S.gLineW)*scale),fs}));return oc;}
+  // 仅渲染照片（不含标注），用作 PDF 的位图底图
+  function renderPhoto(scale){const w=Math.round(S.img.width*scale),h=Math.round(S.img.height*scale);const oc=document.createElement("canvas");oc.width=w;oc.height=h;const g=oc.getContext("2d");g.drawImage(S.img,0,0,w,h);return oc;}
+  // 把测量线条/标注以矢量方式画到 PDF 上：用一个模拟 Canvas 2D 的适配器复用 renderShape 的全部绘制逻辑，
+  // 每个绘制调用转成 jsPDF 的矢量图元。照片仍是位图，线条与文字则是可无损缩放的矢量。
+  function drawVectorOverlay(pdf,ix,iy,iw,ih,sc){
+    const canvasW=S.img.width*sc; const f=iw/canvasW; // canvas像素 -> mm
+    const vc=makePdfCtx(pdf,f,ix,iy);
+    const T=p=>({x:p.x*sc,y:p.y*sc});
+    const lw=Math.max(2,2.4*sc),fs=Math.max(12,13*sc);
+    if(S.calibLine)renderShape(vc,{type:"line",pts:[S.calibLine.p1,S.calibLine.p2],color:"#e0a800"},T,{k:sc,lw,fs,dash:true,forceText:calibText()});
+    S.measures.forEach(m=>renderShape(vc,m,T,{k:sc,lw:Math.max(1,(m.lw||S.gLineW)*sc),fs}));
+  }
+  // Canvas2D -> jsPDF 矢量适配器。renderShape 传入的坐标/长度都以 canvas 像素为单位，f 把它们换算为 mm。
+  function makePdfCtx(pdf,f,ox,oy){
+    const PT=0.3527777778; // 1pt = 0.352…mm
+    const toX=x=>ox+x*f, toY=y=>oy+y*f, toL=v=>v*f;
+    let paths=[]; // [{pts:[{x,y}],closed:bool}]
+    const st={strokeStyle:"#000",fillStyle:"#000",lineWidth:1,globalAlpha:1,dash:[],fs:12,textBaseline:"alphabetic",lineCap:"round",lineJoin:"round"};
+    const stack=[];
+    // 中文/非拉丁字符 jsPDF 内置字体无法显示，改为把这类文字渲染成高清位图贴到 PDF 上（拉丁字符仍走矢量文字）
+    const mcv=(typeof document!=="undefined")?document.createElement("canvas").getContext("2d"):null;
+    const fontCss=px=>"600 "+px+"px -apple-system,'Segoe UI',Roboto,'Microsoft YaHei','PingFang SC','Hiragino Sans GB','Noto Sans CJK SC',sans-serif";
+    const hasCJK=t=>{t=""+t;for(let i=0;i<t.length;i++)if(t.charCodeAt(i)>255)return true;return false;};
+    function parseColor(c){
+      if(Array.isArray(c))return c;
+      c=(""+(c||"")).trim();
+      if(c[0]==="#"){let h=c.slice(1);if(h.length===3)h=h.split("").map(x=>x+x).join("");const n=parseInt(h,16);return[(n>>16)&255,(n>>8)&255,n&255,1];}
+      const m=c.match(/rgba?\(([^)]+)\)/i);if(m){const p=m[1].split(",").map(s=>parseFloat(s));return[p[0]|0,p[1]|0,p[2]|0,(p[3]==null||isNaN(p[3]))?1:p[3]];}
+      return[0,0,0,1];
+    }
+    function setDash(arr){const a=(arr||[]).map(toL);if(pdf.setLineDashPattern)pdf.setLineDashPattern(a,0);else if(pdf.setLineDash)pdf.setLineDash(a,0);}
+    function gstate(a){try{pdf.setGState(new pdf.GState({opacity:a,"stroke-opacity":a}));}catch(e){}}
+    function applyStroke(){const c=parseColor(st.strokeStyle);pdf.setDrawColor(c[0],c[1],c[2]);pdf.setLineWidth(Math.max(0.05,toL(st.lineWidth)));setDash(st.dash);try{pdf.setLineCap(st.lineCap);pdf.setLineJoin(st.lineJoin);}catch(e){}gstate(st.globalAlpha*c[3]);}
+    function applyFill(){const c=parseColor(st.fillStyle);pdf.setFillColor(c[0],c[1],c[2]);gstate(st.globalAlpha*c[3]);}
+    function deltas(pts){const start={x:toX(pts[0].x),y:toY(pts[0].y)};const d=[];for(let i=1;i<pts.length;i++)d.push([toX(pts[i].x)-toX(pts[i-1].x),toY(pts[i].y)-toY(pts[i-1].y)]);return{start,d};}
+    function arcPts(cx,cy,rx,ry,a0,a1,ccw){let start=a0,end=a1;if(ccw){if(start<end)start+=Math.PI*2;}else{if(end<start)end+=Math.PI*2;}const span=end-start;const n=Math.max(8,Math.ceil(Math.abs(span)/(Math.PI/32)));const pts=[];for(let i=0;i<=n;i++){const a=start+span*i/n;pts.push({x:cx+Math.cos(a)*rx,y:cy+Math.sin(a)*ry});}return pts;}
+    function appendArc(pts){if(!pts.length)return;if(!paths.length){paths.push({pts:pts.slice(),closed:false});}else{const cur=paths[paths.length-1];pts.forEach(p=>cur.pts.push(p));}}
+    const ctx={
+      get strokeStyle(){return st.strokeStyle;}, set strokeStyle(v){st.strokeStyle=v;},
+      get fillStyle(){return st.fillStyle;}, set fillStyle(v){st.fillStyle=v;},
+      get lineWidth(){return st.lineWidth;}, set lineWidth(v){st.lineWidth=v;},
+      get globalAlpha(){return st.globalAlpha;}, set globalAlpha(v){st.globalAlpha=v;},
+      get lineCap(){return st.lineCap;}, set lineCap(v){st.lineCap=v;},
+      get lineJoin(){return st.lineJoin;}, set lineJoin(v){st.lineJoin=v;},
+      get textBaseline(){return st.textBaseline;}, set textBaseline(v){st.textBaseline=v;},
+      get font(){return st._font;}, set font(v){st._font=v;const m=(""+v).match(/([\d.]+)px/);st.fs=m?parseFloat(m[1]):12;pdf.setFontSize(Math.max(1,st.fs*f/PT));},
+      save(){stack.push(Object.assign({},st));},
+      restore(){const p=stack.pop();if(p)Object.assign(st,p);},
+      setLineDash(a){st.dash=(a&&a.length)?a.slice():[];},
+      beginPath(){paths=[];},
+      moveTo(x,y){paths.push({pts:[{x,y}],closed:false});},
+      lineTo(x,y){if(!paths.length)paths.push({pts:[{x,y}],closed:false});else paths[paths.length-1].pts.push({x,y});},
+      closePath(){if(paths.length)paths[paths.length-1].closed=true;},
+      arc(cx,cy,r,a0,a1,ccw){appendArc(arcPts(cx,cy,r,r,a0,a1,ccw));},
+      ellipse(cx,cy,rx,ry,rot,a0,a1,ccw){appendArc(arcPts(cx,cy,rx,ry,a0,a1,ccw));},
+      arcTo(x1,y1,x2,y2,r){ctx.lineTo(x1,y1);},
+      stroke(){applyStroke();paths.forEach(p=>{if(p.pts.length<2)return;const{start,d}=deltas(p.pts);pdf.lines(d,start.x,start.y,[1,1],"S",p.closed);});},
+      fill(){applyFill();paths.forEach(p=>{if(p.pts.length<2)return;const{start,d}=deltas(p.pts);pdf.lines(d,start.x,start.y,[1,1],"F",true);});},
+      strokeRect(x,y,w,h){applyStroke();pdf.rect(toX(x),toY(y),toL(w),toL(h),"S");},
+      fillRect(x,y,w,h){applyFill();pdf.rect(toX(x),toY(y),toL(w),toL(h),"F");},
+      measureText(t){t=""+t;if(hasCJK(t)&&mcv){mcv.font=fontCss(st.fs);return{width:mcv.measureText(t).width};}return{width:pdf.getTextWidth(t)/f};},
+      fillText(t,x,y){t=""+t;const c=parseColor(st.fillStyle);
+        if(hasCJK(t)&&mcv){const R=4,px=st.fs*R;mcv.font=fontCss(px);const wpx=Math.max(1,mcv.measureText(t).width),hpx=Math.ceil(px*1.35);
+          const cv=document.createElement("canvas");cv.width=Math.ceil(wpx)+2;cv.height=hpx;const cg=cv.getContext("2d");
+          cg.font=fontCss(px);cg.textBaseline="middle";cg.fillStyle="rgb("+c[0]+","+c[1]+","+c[2]+")";cg.globalAlpha=Math.max(0,Math.min(1,st.globalAlpha*c[3]));cg.fillText(t,1,hpx/2);
+          const wmm=(cv.width/R)*f,hmm=(cv.height/R)*f,top=(st.textBaseline==="middle")?(toY(y)-hmm/2):(toY(y)-hmm);
+          pdf.addImage(cv.toDataURL("image/png"),"PNG",toX(x),top,wmm,hmm);return;}
+        pdf.setTextColor(c[0],c[1],c[2]);gstate(st.globalAlpha*c[3]);pdf.text(t,toX(x),toY(y),{baseline:(st.textBaseline==="middle")?"middle":"alphabetic"});}
+    };
+    return ctx;
+  }
+  // PDF 中输出可能含中文的文本：纯拉丁走矢量文字，含非拉丁字符则渲染为高清位图贴入（ptSize 为磅值，rgb 可选）
+  function cjkText(pdf,txt,x,y,ptSize,rgb){
+    txt=""+txt;let cjk=false;for(let i=0;i<txt.length;i++)if(txt.charCodeAt(i)>255){cjk=true;break;}
+    if(!cjk||typeof document==="undefined"){pdf.text(txt,x,y);return;}
+    const K=12,fpx=Math.max(6,ptSize*0.3527778*K);
+    const font="600 "+fpx+"px -apple-system,'Segoe UI',Roboto,'Microsoft YaHei','PingFang SC','Hiragino Sans GB','Noto Sans CJK SC',sans-serif";
+    const mc=cjkText._mc||(cjkText._mc=document.createElement("canvas").getContext("2d"));mc.font=font;
+    const wpx=Math.max(1,mc.measureText(txt).width);
+    const cv=document.createElement("canvas");cv.width=Math.ceil(wpx)+2;cv.height=Math.ceil(fpx*1.3);
+    const cg=cv.getContext("2d");cg.font=font;cg.textBaseline="alphabetic";cg.fillStyle="rgb("+((rgb&&rgb.join(","))||"40,40,40")+")";cg.fillText(txt,1,fpx);
+    pdf.addImage(cv.toDataURL("image/png"),"PNG",x,y-fpx/K,cv.width/K,cv.height/K);
+  }
+  function exportPdf(){
+    const{jsPDF}=window.jspdf;const pdf=new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});const pw=210,ph=297,mg=14;
+    pdf.setFont("helvetica","bold");pdf.setFontSize(16);pdf.setTextColor(30);pdf.text("Measurement Report",mg,18);
+    pdf.setFont("helvetica","normal");pdf.setFontSize(9);pdf.setTextColor(120);
+    cjkText(pdf,"Image: "+(S.imgName||"-"),mg,25,9,[120,120,120]);pdf.text("Date: "+new Date().toLocaleString(),mg,30);
+    pdf.text("Scale: "+(S.pxPerUnit?fmt(S.pxPerUnit)+" px = 1 "+S.unit:"not calibrated"),mg,35);
+    pdf.setDrawColor(200);pdf.line(mg,39,pw-mg,39);
+    const sc=Math.min(2,Math.max(1,1400/Math.max(S.img.width,S.img.height)));const pc=renderPhoto(sc);
+    const availW=pw-mg*2;let iw=availW,ih=iw*pc.height/pc.width;const maxIh=150;if(ih>maxIh){ih=maxIh;iw=ih*pc.width/pc.height;}
+    const ix=(pw-iw)/2,iy=44;pdf.addImage(pc.toDataURL("image/jpeg",0.92),"JPEG",ix,iy,iw,ih);
+    try{drawVectorOverlay(pdf,ix,iy,iw,ih,sc);}catch(err){console.error("vector overlay failed, falling back to raster",err);const oc=renderAnnotated(sc);pdf.addImage(oc.toDataURL("image/jpeg",0.92),"JPEG",ix,iy,iw,ih);}
+    pdf.setDrawColor(220);pdf.rect(ix,iy,iw,ih);
+    let y=iy+ih+12;pdf.setFont("helvetica","bold");pdf.setFontSize(11);pdf.setTextColor(30);pdf.text("Measurements",mg,y);y+=6;
+    pdf.setFontSize(9);const c1=mg+2,c2=mg+30,c3=mg+70;pdf.setFillColor(240);pdf.rect(mg,y-4,availW,7,"F");pdf.setTextColor(80);
+    pdf.text("Label",c1,y);pdf.text("Type",c2,y);pdf.text("Value / Detail",c3,y);y+=7;
+    pdf.setFont("helvetica","normal");pdf.setTextColor(40);let total=0,any=false;
+    S.measures.forEach(m=>{if(y>ph-20){pdf.addPage();y=20;}const c=computeShape(m);if(c.kind==="length"&&c.value!=null){total+=c.value;any=true;}pdf.setDrawColor(235);pdf.line(mg,y+2,pw-mg,y+2);
+      const val=asc(c.text)+(c.detail?"  ("+asc(c.detail)+")":"");
+      cjkText(pdf,String(m.label).slice(0,22),c1,y,9,[40,40,40]);pdf.text(SHAPES[m.type].en,c2,y);cjkText(pdf,val.slice(0,60),c3,y,9,[40,40,40]);y+=7;});
+    if(!S.measures.length){pdf.setTextColor(150);pdf.text("(no measurements)",c1,y);y+=7;}
+    if(any){pdf.setFont("helvetica","bold");pdf.setTextColor(20);pdf.text("Total length",c1,y+1);pdf.text(asc(fmt(total)+" "+S.unit),c3,y+1);}
+    pdf.setFontSize(8);pdf.setTextColor(160);pdf.text("Generated by Camera Measure tool",mg,ph-8);
+    pdf.save((S.imgName.replace(/\.[^.]+$/,"")||"measure")+"_report.pdf");toast(L("toastPdfDone"));
+  }
+  function asc(s){return(s+"").replace(/²/g,"^2").replace(/⌒/g,"arc ").replace(/×/g,"x").replace(/Ø/g,"D");}
+
+  function toast(msg){const t=$("toast");t.textContent=msg;t.classList.add("on");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("on"),1900);}
+
+  // ---------- 悬浮约束键 + 方向键 + 面板收起 + 触屏 ----------
+  function updateFloatUI(){
+    const dp=$("dpadwrap");if(dp)dp.classList.toggle("nosel",S.selId==null);
+    const cb=$("cbtnShift");if(cb)cb.classList.toggle("on",S.constrain);
+  }
+  // 约束按钮（等价 Shift）
+  $("cbtnShift").addEventListener("click",e=>{e.preventDefault();S.constrain=!S.constrain;updateFloatUI();});
+  // 面板收起/展开
+  function togglePanel(){document.body.classList.toggle("panel-hidden");resize();}
+  $("panelBtn").addEventListener("click",togglePanel);
+  $("asideCollapse").addEventListener("click",togglePanel);
+  // 拖动侧栏左边线调整宽度（最大不超过默认宽度）
+  (function(){
+    const aside=document.querySelector("aside"),rz=$("asideResize");
+    if(!aside||!rz)return;
+    const MAXW=236,MINW=168;
+    let dragging=false,startX=0,startW=0;
+    rz.addEventListener("pointerdown",e=>{
+      dragging=true;startX=e.clientX;startW=aside.getBoundingClientRect().width;
+      rz.classList.add("dragging");document.body.style.cursor="ew-resize";
+      try{rz.setPointerCapture(e.pointerId);}catch(_){}
+      e.preventDefault();
+    });
+    rz.addEventListener("pointermove",e=>{
+      if(!dragging)return;
+      let w=startW-(e.clientX-startX);
+      w=Math.max(MINW,Math.min(MAXW,w));
+      aside.style.width=w+"px";resize();
+    });
+    const end=()=>{if(!dragging)return;dragging=false;rz.classList.remove("dragging");document.body.style.cursor="";};
+    rz.addEventListener("pointerup",end);
+    rz.addEventListener("pointercancel",end);
+    rz.addEventListener("dblclick",()=>{aside.style.width=MAXW+"px";resize();});
+  })();
+  // 触屏没有 Esc / Enter / 双击也不好按，绘制过程中给一条可见的操作条
+  const IS_TOUCH=(typeof window!=="undefined")&&(("ontouchstart" in window)||((navigator.maxTouchPoints||0)>0));
+  function updatePlaceBar(){
+    const bar=$("placeBar");if(!bar)return;
+    const on=!!(S.placing&&IS_TOUCH);
+    bar.classList.toggle("on",on);
+    if(on){
+      const type=S.placing.type;
+      // 定点数图形（直线/矩形…）放够点会自动收尾，"完成"对它没意义
+      const need=SHAPES[type]?SHAPES[type].click:2;
+      const finished=need>0&&S.placing.pts.length>=need;
+      const doneBtn=$("pbDone");if(doneBtn)doneBtn.style.display=finished?"none":"";
+    }
+  }
+  $("pbUndo").addEventListener("click",e=>{
+    e.preventDefault();if(!S.placing)return;
+    const p=S.placing.pts;
+    if(p.length<=1)cancelPlacing();
+    else{p.pop();S.adjusting=false;S.cursorImg=null;S.snapPt=null;T.lastTapT=0;T.lastTapSp=null;draw();}
+    updatePlaceBar();
+  });
+  $("pbDone").addEventListener("click",e=>{e.preventDefault();finalizePlacing();updatePlaceBar();});
+  $("pbCancel").addEventListener("click",e=>{e.preventDefault();cancelPlacing();updatePlaceBar();});
+  // 方向键长按连发
+  function bindHold(btn,fn){
+    let iv=null,to=null,active=false;
+    const start=e=>{e.preventDefault();if(active)return;active=true;fn();to=setTimeout(()=>{iv=setInterval(fn,60);},320);};
+    const stop=()=>{if(!active)return;active=false;clearTimeout(to);clearInterval(iv);iv=to=null;if(S.nudged){S.nudged=false;commit();}};
+    btn.addEventListener("pointerdown",start);
+    btn.addEventListener("pointerup",stop);
+    btn.addEventListener("pointerleave",stop);
+    btn.addEventListener("pointercancel",stop);
+    btn.addEventListener("contextmenu",e=>e.preventDefault());
+  }
+  document.querySelectorAll("#dpadwrap .dpad .fbtn[data-nudge]").forEach(btn=>{
+    const parts=btn.getAttribute("data-nudge").split(",");const ux=parseInt(parts[0],10),uy=parseInt(parts[1],10);
+    bindHold(btn,()=>{if(S.selId==null)return;const step=S.constrain?10:1;nudge(ux*step,uy*step);});
+  });
+
+  // ---------- 触屏交互 ----------
+  function touchPos(t){const r=canvas.getBoundingClientRect();return{x:t.clientX-r.left,y:t.clientY-r.top};}
+  const T={mode:null,startSp:null,viewStart:null,pinchDist:0,pinchMid:null,pinchScale:0,moved:false,startT:0,lastTapT:0,lastTapSp:null,tapCandidate:null};
+  function dist2(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
+  canvas.addEventListener("touchstart",e=>{
+    if(!S.img){return;}
+    e.preventDefault();
+    if(e.touches.length===1){
+      const sp=touchPos(e.touches[0]);T.startSp=sp;T.moved=false;T.startT=Date.now();T.tapCandidate=sp;
+      if(S.mode==="select"){
+        // 尝试抓取手柄/标签/本体
+        selectDown(sp,{shiftKey:false});
+        if(S.drag){T.mode="drag";drawLoupe(sp,true);return;}
+        T.mode="pan";T.viewStart={ox:S.view.ox,oy:S.view.oy};return;
+      }
+      if(SHAPES[S.mode]||S.mode==="calibrate"){
+        // 放置模式：先检测双击完成多边形/样条
+        const now=Date.now();
+        if(S.placing&&(S.placing.type==="polygon"||S.placing.type==="spline")&&T.lastTapSp&&(now-T.lastTapT)<320&&dist2(sp,T.lastTapSp)<DUP_TAP_PX){
+          popLastIfDuplicate(S.placing.pts);finalizePlacing();
+          T.lastTapT=0;T.lastTapSp=null;T.mode=null;T.tapCandidate=null;return;
+        }
+        // 按下即定点，可拖动微调，松开确定
+        placementClick(sp,{shiftKey:S.constrain});
+        T.mode="place";drawLoupe(sp,true);return;
+      }
+      // 其它：平移
+      T.mode="pan";T.viewStart={ox:S.view.ox,oy:S.view.oy};
+    }else if(e.touches.length>=2){
+      // 双指手势：只冻结"正在微调的那个点"，【不再丢弃已放好的点】。
+      // 旧行为会 pop 掉当前点，而双指恰恰是绘制途中平移/缩放的唯一手段，等于一平移就丢点。
+      if(S.adjusting&&S.placing){S.adjusting=false;S.cursorImg=null;draw();}
+      S.drag=null;S.dragMoved=false;T.mode="pinch";loupeEl.style.display="none";
+      const a=touchPos(e.touches[0]),b=touchPos(e.touches[1]);
+      T.pinchDist=dist2(a,b);T.pinchMid=mid(a,b);T.pinchScale=S.view.scale;
+      T.pinchImg=screenToImg(T.pinchMid);
+    }
+  },{passive:false});
+  canvas.addEventListener("touchmove",e=>{
+    if(!S.img)return;e.preventDefault();
+    if(T.mode==="pinch"&&e.touches.length>=2){
+      const a=touchPos(e.touches[0]),b=touchPos(e.touches[1]);
+      const nd=dist2(a,b),nmid=mid(a,b);
+      const f=nd/(T.pinchDist||1);
+      S.view.scale=Math.min(80,Math.max(0.02,T.pinchScale*f));
+      S.view.ox=nmid.x-T.pinchImg.x*S.view.scale;
+      S.view.oy=nmid.y-T.pinchImg.y*S.view.scale;
+      draw();updateStatus(nmid);return;
+    }
+    if(e.touches.length!==1)return;
+    const sp=touchPos(e.touches[0]);
+    if(dist2(sp,T.startSp)>6)T.moved=true;
+    if(T.mode==="drag"&&S.drag){dragMove(sp,{shiftKey:S.constrain});drawLoupe(sp,true);return;}
+    if(T.mode==="place"&&S.placing&&S.adjusting){
+      updateExtSeg(sp);const ipRaw=screenToImg(sp);
+      const idx=S.placing.pts.length-1;const prev=idx>0?S.placing.pts[idx-1]:null;
+      const r=placePoint(prev,ipRaw,S.placing.type,S.constrain,sp);
+      S.placing.pts[idx]=r.pt;S.cursorImg=r.pt;S.snapPt=r.snap;draw();drawLoupe(sp,true);return;
+    }
+    if(T.mode==="pan"){S.view.ox=T.viewStart.ox+(sp.x-T.startSp.x);S.view.oy=T.viewStart.oy+(sp.y-T.startSp.y);draw();updateStatus(sp);}
+  },{passive:false});
+  canvas.addEventListener("touchend",e=>{
+    if(!S.img)return;
+    if(T.mode==="drag"){if(S.drag){const moved=S.dragMoved;S.drag=null;S.dragMoved=false;if(moved)commit();}loupeEl.style.display="none";T.mode=null;return;}
+    if(T.mode==="pinch"){if(e.touches.length===0)T.mode=null;return;}
+    if(T.mode==="place"){
+      // 记录本次点击用于双击（完成多边形/样条）检测
+      if(!T.moved&&T.tapCandidate){T.lastTapT=Date.now();T.lastTapSp=T.tapCandidate;}
+      placementUp();loupeEl.style.display="none";T.mode=null;T.tapCandidate=null;return;
+    }
+    if(T.mode==="pan"&&!T.moved&&T.tapCandidate){
+      const sp=T.tapCandidate;const now=Date.now();
+      // 双击检测：选择模式插入顶点
+      if(T.lastTapSp&&(now-T.lastTapT)<320&&dist2(sp,T.lastTapSp)<24){
+        if(S.mode==="select"){tryInsertVertex(sp);}
+        T.lastTapT=0;T.lastTapSp=null;T.mode=null;T.tapCandidate=null;return;
+      }
+      T.lastTapT=now;T.lastTapSp=sp;
+      if(S.mode==="select"){selectDown(sp,{shiftKey:false});}
+    }
+    loupeEl.style.display="none";T.mode=null;T.tapCandidate=null;
+  },{passive:false});
+  canvas.addEventListener("touchcancel",()=>{S.drag=null;S.dragMoved=false;S.adjusting=false;T.mode=null;loupeEl.style.display="none";});
+
+  // init
+  S.lang=resolveLang();setMenuSel("langMenu",S.langPref);applyStaticLang();
+  setMenuSel("themeMenu",S.themePref);applyTheme();
+  if(window.innerWidth<820)document.body.classList.add("panel-hidden");
+  // 触屏设备默认打开放大镜
+  if(("ontouchstart" in window)||(navigator.maxTouchPoints>0)){S.loupe=true;const lb=$("btnLoupe");if(lb)lb.classList.add("active");}
+  resize();updateScaleUI();setMode("line");histReset();updateFloatUI();
+})();
+</script>
+</body>
+</html>
