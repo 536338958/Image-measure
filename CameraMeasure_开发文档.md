@@ -139,7 +139,11 @@ paintOverlay(lg, imgToScreen, {k:S.view.scale, handles:true});
 
 悬停高亮（`S.hoverId`）是为了弥补"画完就看不见点在哪"：鼠标移到图形上（复用 `hitBody`，7px）时，把它**当前的端点与每条边的中点**临时亮出来，移开即消失。
 
+**主要场景是绘图模式**——画新线时要看清已有图形的端点/边中点在哪，才好吸附对齐；select 模式同样生效（方便点选编辑）。
+
 - 命中：最上层优先，与点击选中的顺序一致（`selectDown` 用的是同一个顺序）。
+- 三处 `mousemove` 分支都要算 hover：`S.placing`（正在画第二个点时）、绘图工具分支、select 分支。
+  ⚠️ 末尾那个"其它模式清掉 hoverId"的 `else if` **必须排除绘图/放置分支**，否则刚算完就被自己清掉，画面一闪而过。
 - 矩形显示**四角**（`cornerPoints`），其余类型显示 `m.pts`；边中点来自 `segmentsOf`，所以圆/圆弧/椭圆没有中点可显示。
 - 只在**未选中**时画：选中的那个走方形手柄，避免两套标记叠在一起。
 - 只有命中结果变化时才 `draw()`，不会每次 `mousemove` 都重绘。
@@ -322,7 +326,7 @@ paintOverlay(lg, imgToScreen, {k:S.view.scale, handles:true});
 
 除无浏览器环境下的两类校验（见下）外，现在有了一套**真正跑起来的 headless 冒烟测试**：`CameraMeasure_smoketest.js`（与 HTML 同目录）。
 
-它用 jsdom 加载真实 HTML，并 stub 掉 canvas 2D context、`Image`、`getBoundingClientRect`、`URL.createObjectURL`，所以 init、作图、标定、撤销/重做、导出等流程都会真实执行到位，再断言 DOM 结果。**77 项检查全部通过**（含 HiDPI、放大镜矢量重绘、端点显示策略、色板与样式归属、触屏专项、取点优先级与约束吸附、悬停高亮）。
+它用 jsdom 加载真实 HTML，并 stub 掉 canvas 2D context、`Image`、`getBoundingClientRect`、`URL.createObjectURL`，所以 init、作图、标定、撤销/重做、导出等流程都会真实执行到位，再断言 DOM 结果。**80 项检查全部通过**（含 HiDPI、放大镜矢量重绘、端点显示策略、色板与样式归属、触屏专项、取点优先级与约束吸附、悬停高亮）。
 
 `mockCtx` 会把每次 2D 调用（`drawImage/stroke/scale/setTransform`…）按画布记录到 `canvasEl.__rec.calls`，所以可以断言"放大镜有没有去采样主画布位图"这类**行为**而不只是"没崩"。测试里 `devicePixelRatio` 被伪造成 2，以便真实验 HiDPI 分支。运行方式：
 
@@ -355,13 +359,17 @@ NODE_PATH=<隔离目录>/node_modules node CameraMeasure_smoketest.js
 ## 18. 变更历史
 
 - **2026-09-28（悬停时临时显示端点 / 边中点）**
-  - 需求：图形画完后端点被清掉了（画面整洁），但要选中/抓取时"看不见点在哪"。现在**鼠标悬停到图形上**会临时亮出它的端点与每条边的中点，移开即消失。
+  - 需求：图形画完后端点被清掉了（画面整洁），但取点时"看不见点在哪"。现在**鼠标悬停到图形上**会临时亮出它的端点与每条边的中点，移开即消失。
+  - ⚠️ 第一版只做在 select 模式，**理解偏了**：真正需要它的是**绘图模式**（画新线时对齐已有图形的端点/边中点）。现已覆盖三处 `mousemove` 分支：绘图工具分支、**放置中**（第一点已落下、正在找第二点）、select 分支。
   - 新增状态 `S.hoverId` + 两个函数：`hoverAt(sp)`（复用 `hitBody`，最上层优先）、`hoverAnchors(m)`（端点取 `m.pts`，矩形取四角；中点取 `segmentsOf` 的各边中点）。
   - `renderShape` 新增 `opt.hover` 分支：小空心圆=端点，小方块=边中点，样式比选中手柄轻一档。**仅在未选中时画**，避免与手柄叠加。
   - 只有命中结果变化时才重绘；`mouseleave` / `setMode` / `delMeasure` / `_restore` 都会清空 `S.hoverId`。放大镜共用 `paintOverlay`，同样能看到。
   - 顺手把光标逻辑补齐：select 模式下悬停到任意图形即显示 `move` 光标（原来只在已选中时判断）。
-  - 测试 74 → **77 项全通过**；新增 61/61b/62 均通过**变异测试**：D（hover 不传给 renderShape）→ 61/61b FAIL；E（只显端点不显中点）→ 61b FAIL；F（命中恒为 null）→ 61/61b FAIL。
-    ⚠️ 断言前提：必须先点空白处**取消选中**，否则走的是手柄分支、hover 根本不触发，61 会恒假。
+  - 测试 74 → **80 项全通过**；新增 61/61b/62（select 模式）与 63/63b/64（绘图模式 / 放置中），均通过**变异测试**：D（hover 不传给 renderShape）→ 61/61b；E（只显端点不显中点）→ 61b；F（命中恒为 null）→ 61/61b；G（绘图分支不算 hover）→ 63/63b；H（放置中不算 hover）→ 64；I（尾部又把 hoverId 清掉）→ 63/63b/64。
+    ⚠️ 断言前提有三条，任一不满足断言就会变成恒真的摆设：
+    ① 61 必须先点空白处**取消选中**，否则走手柄分支、hover 根本不触发；
+    ② 63 的取样点要避开端点与中点，否则吸附标记的两个绿圈会混进 arc 计数（4 而非 2）；
+    ③ 63/64 必须按 **`clearRect` 切出最后一帧**来统计 —— 若某处先画标记再清掉重绘，按整段时间统计总数照样有值，H/I 两个变异就是这样漏过去的。
 
 - **2026-09-24 晚（取点：抓端点而不是边线中点）**
   - 修：**矩形四角补齐为端点候选**（`cornerPoints`）。矩形只存对角两点，另外两角是派生的，旧代码在光标压住那两个角时"无点可吸"，只能被 4 条边的中点抢走。
