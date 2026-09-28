@@ -454,7 +454,7 @@
     measures:[], selId:null, active:-1,
     placing:null, cursorImg:null,
     drag:null, panning:false, panStart:null, viewStart:null,
-    loupe:false, mouseSp:null, showRadius:false, snapPt:null, extSegs:[],
+    loupe:false, mouseSp:null, showRadius:false, snapPt:null, extSegs:[], hoverId:null,
     gColor:"#4c9aff", gLineW:2, scaleLocked:false,
     constrain:false, touch:null, nudged:false, adjusting:false,
     customAngles:["30","45","60","","","","","","",""],
@@ -796,7 +796,7 @@
     ctx.clearRect(0,0,CW,CH);
     if(!S.img)return;
     ctx.drawImage(S.img,S.view.ox,S.view.oy,S.img.width*S.view.scale,S.img.height*S.view.scale);
-    paintOverlay(ctx,imgToScreen,{k:S.view.scale,cacheLbl:true,handles:true});
+    paintOverlay(ctx,imgToScreen,{k:S.view.scale,cacheLbl:true,handles:true,hover:true});
   }
   // 覆盖层（所有测量/辅助元素的矢量绘制）。g 可以是主画布 ctx，也可以是放大镜 ctx；
   // T 是「图像坐标 → 目标坐标」的映射；这样放大镜无需采样位图就能重画出同样的内容。
@@ -809,7 +809,11 @@
     S.measures.forEach(m=>{
       const bw=(m.lw||S.gLineW);
       renderShape(g,m,T,{k,lw:bw+(m.id===S.selId?0.8:0),fs:12,cacheLbl:opt.cacheLbl,
-        handles:opt.handles&&(S.mode==="select"&&m.id===S.selId),active:(m.id===S.selId?S.active:-1),sel:m.id===S.selId});
+        handles:opt.handles&&(S.mode==="select"&&m.id===S.selId),
+        // 悬停时临时亮出端点/边中点：只在「已画完 + 未被选中」时生效，
+        // 选中的那个照旧走方形手柄，避免两套标记叠在一起。
+        hover:opt.hover&&m.id===S.hoverId&&m.id!==S.selId,
+        active:(m.id===S.selId?S.active:-1),sel:m.id===S.selId});
     });
     if(S.placing){
       const pts=S.placing.pts.slice();
@@ -861,6 +865,16 @@
       if(opt.handles){const s=(i===opt.active)?6:5;g.setLineDash([]);g.lineWidth=3;g.strokeStyle="rgba(15,17,21,.85)";g.strokeRect(p.x-s,p.y-s,2*s,2*s);g.lineWidth=(i===opt.active)?2.4:1.7;g.strokeStyle=(i===opt.active)?"#ffffff":col;g.strokeRect(p.x-s,p.y-s,2*s,2*s);/* 透明填充，可见下方图像 */}
       else if(opt.draft){g.setLineDash([]);const r=lw+2.2;g.beginPath();g.arc(p.x,p.y,r,0,7);g.lineWidth=2.6;g.strokeStyle="rgba(15,17,21,.7)";g.stroke();g.lineWidth=1.6;g.strokeStyle=col;g.stroke();/* 空心端点，画线时可见下方图像 */}
     });
+
+    // 悬停提示：空心小圆=端点（矩形展示四角），实心小方块=该边中点。
+    // 样式刻意做得比「选中手柄」轻一档，一眼能区分是"预览"而不是"已选中"。
+    if(opt.hover){
+      const ha=hoverAnchors(m);
+      g.save();g.setLineDash([]);g.globalAlpha=.9;
+      ha.ends.forEach(p=>{const q=T(p);g.beginPath();g.arc(q.x,q.y,4,0,7);g.lineWidth=2.4;g.strokeStyle="rgba(15,17,21,.7)";g.stroke();g.lineWidth=1.4;g.strokeStyle=col;g.stroke();});
+      ha.mids.forEach(p=>{const q=T(p);g.fillStyle="rgba(15,17,21,.7)";g.fillRect(q.x-3,q.y-3,6,6);g.fillStyle=col;g.fillRect(q.x-2,q.y-2,4,4);});
+      g.restore();
+    }
 
     // center marker (+) for arc / circle / circle3 / ellipse / rect
     if(centerImg&&!opt.draft){const cp=T(centerImg),cs=6;g.setLineDash([]);g.lineWidth=2;g.strokeStyle="rgba(15,17,21,.6)";g.beginPath();g.moveTo(cp.x-cs,cp.y);g.lineTo(cp.x+cs,cp.y);g.moveTo(cp.x,cp.y-cs);g.lineTo(cp.x,cp.y+cs);g.stroke();g.lineWidth=1;g.strokeStyle=col;g.beginPath();g.moveTo(cp.x-cs,cp.y);g.lineTo(cp.x+cs,cp.y);g.moveTo(cp.x,cp.y-cs);g.lineTo(cp.x,cp.y+cs);g.stroke();}
@@ -915,6 +929,25 @@
     return false;
   }
 
+  // ---------- 悬停提示点 ----------
+  // 图形画完后不再留端点（保持画面整洁），但鼠标移到它上面时临时把「端点 + 每条边的中点」
+  // 亮出来，方便看清这条测量在哪、把光标精确放到想抓的点上。只做展示，不改命中逻辑。
+  function hoverAnchors(m){
+    if(!m||!m.pts||!m.pts.length)return{ends:[],mids:[]};
+    const ends=[];
+    if(m.type==="rect"&&m.pts.length>=2)cornerPoints(m).forEach(p=>ends.push({x:p.x,y:p.y}));
+    else m.pts.forEach(p=>ends.push({x:p.x,y:p.y}));
+    const mids=[];
+    segmentsOf(m).forEach(sg=>{const a=sg[0],b=sg[1];if(a&&b)mids.push({x:(a.x+b.x)/2,y:(a.y+b.y)/2});});
+    return{ends,mids};
+  }
+  // 悬停命中：取最上层的那条（与点击选中的顺序一致）
+  function hoverAt(sp){
+    if(S.drag||S.placing)return null;
+    for(let i=S.measures.length-1;i>=0;i--){if(hitBody(S.measures[i],sp))return S.measures[i].id;}
+    return null;
+  }
+
   // ---------- constraints ----------
   function CON(e){return (!!(e&&e.shiftKey))||S.constrain;}
   // 约束方向集合：默认仅平行(0/180)与垂直(90/270)，外加用户自定义角度(在四象限镜像)
@@ -960,11 +993,19 @@
       draw();}
     else if(S.img&&(SHAPES[S.mode]||S.mode==="calibrate")){const beforeExt=extKey(S.extSegs);updateExtSeg(sp);const snap=snapVertex(sp);const snapChanged=(snap!==S.snapPt&&!(snap&&S.snapPt&&snap.x===S.snapPt.x&&snap.y===S.snapPt.y));S.snapPt=snap;if(snapChanged||extKey(S.extSegs)!==beforeExt)draw();}
     else if(S.snapPt||(S.extSegs&&S.extSegs.length)){S.snapPt=null;S.extSegs=[];draw();}
-    if(S.mode==="select"&&S.selId!=null){const m=getM(S.selId);canvas.style.cursor=(m&&(handleAt(m,sp)>=0||hitLabel(m,sp)))?"move":(m&&hitBody(m,sp)?"move":"default");}
+    if(S.mode==="select"&&!S.drag&&!S.placing){
+      // 悬停高亮：命中哪条就把它的端点/边中点临时亮出来。命中结果变了才重绘，
+      // 否则每次 mousemove 都重画一遍白白烧 CPU。
+      const h=hoverAt(sp);
+      if(h!==S.hoverId){S.hoverId=h;draw();}
+      const m=S.selId!=null?getM(S.selId):null;
+      const onSel=!!(m&&(handleAt(m,sp)>=0||hitLabel(m,sp)||hitBody(m,sp)));
+      canvas.style.cursor=(onSel||h!=null)?"move":"default";
+    }else if(S.hoverId!=null){S.hoverId=null;draw();}
     drawLoupe(sp);updateStatus(sp);
   });
   window.addEventListener("mouseup",()=>{if(S.panning){S.panning=false;canvas.style.cursor=S.mode==="pan"?"grab":(S.mode==="select"?"default":"crosshair");}if(S.drag){const moved=S.dragMoved;S.drag=null;S.dragMoved=false;if(moved)commit();}if(S.adjusting)placementUp();});
-  canvas.addEventListener("mouseleave",()=>{loupeEl.style.display="none";if((S.snapPt||(S.extSegs&&S.extSegs.length))&&!S.placing){S.snapPt=null;S.extSegs=[];draw();}});
+  canvas.addEventListener("mouseleave",()=>{loupeEl.style.display="none";let need=false;if((S.snapPt||(S.extSegs&&S.extSegs.length))&&!S.placing){S.snapPt=null;S.extSegs=[];need=true;}if(S.hoverId!=null){S.hoverId=null;need=true;}if(need)draw();});
   canvas.addEventListener("contextmenu",e=>{if(S.placing){e.preventDefault();cancelPlacing();}});
   canvas.addEventListener("dblclick",e=>{if(S.placing&&(S.placing.type==="polygon"||S.placing.type==="spline")){popLastIfDuplicate(S.placing.pts);finalizePlacing();e.preventDefault();return;}if(S.mode==="select"&&S.img){const sp=mousePos(e);if(tryInsertVertex(sp))e.preventDefault();}});
 
@@ -1153,7 +1194,7 @@
   // ---------- undo / redo history ----------
   let _hist=[], _hi=-1; const HIST_MAX=200;
   function _snap(){return JSON.stringify({m:S.measures,cl:S.calibLine,pu:S.pxPerUnit,un:S.unit,ct:S.counters,ni:S.nextId,lk:S.scaleLocked});}
-  function _restore(s){const d=JSON.parse(s);S.measures=d.m;S.calibLine=d.cl;S.pxPerUnit=d.pu;S.unit=d.un;S.counters=d.ct||{};S.nextId=d.ni||1;S.scaleLocked=!!d.lk;S.selId=null;S.active=-1;S.placing=null;S.cursorImg=null;S.snapPt=null;S.extSegs=[];updateScaleUI();renderList();draw();}
+  function _restore(s){const d=JSON.parse(s);S.measures=d.m;S.calibLine=d.cl;S.pxPerUnit=d.pu;S.unit=d.un;S.counters=d.ct||{};S.nextId=d.ni||1;S.scaleLocked=!!d.lk;S.selId=null;S.active=-1;S.placing=null;S.cursorImg=null;S.snapPt=null;S.extSegs=[];S.hoverId=null;updateScaleUI();renderList();draw();}
   function histReset(){_hist=[_snap()];_hi=0;updateUndoUI();}
   function commit(){_hist=_hist.slice(0,_hi+1);_hist.push(_snap());_hi=_hist.length-1;if(_hist.length>HIST_MAX){_hist.shift();_hi--;}updateUndoUI();}
   function undo(){if(_hi<=0)return;_hi--;_restore(_hist[_hi]);updateUndoUI();}
@@ -1246,7 +1287,7 @@
     lg.imageSmoothingEnabled=(S.view.scale*M<1); // 放大时保留清晰像素边界，缩小时才开启插值
     try{lg.drawImage(S.img,S.view.ox,S.view.oy,S.img.width*S.view.scale,S.img.height*S.view.scale);}catch(_){}
     lg.imageSmoothingEnabled=true;
-    paintOverlay(lg,imgToScreen,{k:S.view.scale,handles:true});
+    paintOverlay(lg,imgToScreen,{k:S.view.scale,handles:true,hover:true});
     lg.restore();
     lg.setTransform(DPR,0,0,DPR,0,0);
     lg.strokeStyle="rgba(255,80,90,.95)";lg.lineWidth=1;lg.beginPath();lg.moveTo(L/2,L/2-11);lg.lineTo(L/2,L/2+11);lg.moveTo(L/2-11,L/2);lg.lineTo(L/2+11,L/2);lg.stroke();
@@ -1296,7 +1337,7 @@
     $("totalLen").textContent=any?fmt(total)+S.unit:"—";
   }
   function esc(s){return(s+"").replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-  function delMeasure(id){S.measures=S.measures.filter(m=>m.id!==id);if(S.selId===id){S.selId=null;S.active=-1;}renderList();draw();commit();}
+  function delMeasure(id){S.measures=S.measures.filter(m=>m.id!==id);if(S.selId===id){S.selId=null;S.active=-1;}if(S.hoverId===id)S.hoverId=null;renderList();draw();commit();}
 
   function updateScaleUI(){if(S.pxPerUnit){$("scaleVal").textContent=fmt(S.pxPerUnit)+" px / "+S.unit;$("scaleVal").className="val";$("scaleRow2").style.display="flex";$("scaleUnit").textContent=fmt(1/S.pxPerUnit)+" "+S.unit;}else{$("scaleVal").textContent=L("notCalibratedShort");$("scaleVal").className="val noscale";$("scaleRow2").style.display="none";}updateLockUI();}
   function updateLockUI(){
@@ -1312,7 +1353,7 @@
   function setMode(m){
     if(m==="calibrate"&&S.scaleLocked){toast(L("toastScaleLocked"));return;}
     if(S.placing)cancelPlacing();
-    S.mode=m;S.snapPt=null;S.extSegs=[];
+    S.mode=m;S.snapPt=null;S.extSegs=[];S.hoverId=null;
     if(m==="calibrate"&&!S.loupe){S.loupe=true;$("btnLoupe").classList.add("active");if(S.mouseSp)drawLoupe(S.mouseSp);}
     document.querySelectorAll("[data-mode]").forEach(b=>b.classList.toggle("active",b.dataset.mode===m));
     canvas.style.cursor=m==="pan"?"grab":(m==="select"?"default":"crosshair");
