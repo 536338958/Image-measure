@@ -66,21 +66,18 @@ jobs:
         run: npx tauri icon src-tauri/icons/app-icon.png
         working-directory: desktop
 
-      # 诊断探针 v2：把真实报错用 ::error:: 注解打出来（匿名 API 可读）
-      - name: Probe build (diagnostics)
+      # 诊断探针：cargo check 把编译错误打进注解（匿名 API 可读）
+      - name: Probe cargo check (errors to annotations)
         if: matrix.platform == 'ubuntu-22.04'
         continue-on-error: true
         run: |
           set +e
-          cd desktop
-          OUT=$(timeout 300 npx tauri build 2>&1); CODE=$?
-          printf '%s\n' "$OUT" | tail -50
-          MSG=$(printf '%s' "$OUT" | grep -iE 'error|failed|missing|not found|panic|denied' | tail -10 | tr '\n' ' ; ' | cut -c1-900)
-          echo "::error::tauri build probe (cwd=desktop, exit=$CODE) $MSG"
-          cd ..
-          OUT2=$(npm run tauri build 2>&1); CODE2=$?
-          MSG2=$(printf '%s' "$OUT2" | grep -iE 'error|missing|enoent|not found' | tail -6 | tr '\n' ' ; ' | cut -c1-400)
-          echo "::error::npm-from-repo-root probe (exit=$CODE2) $MSG2"
+          cd desktop/src-tauri
+          OUT=$(timeout 600 cargo check 2>&1); CODE=$?
+          printf '%s\n' "$OUT" | tail -25
+          MSG=$(printf '%s' "$OUT" | grep -E '^error' -A4 | head -80 | tr '\n' ' ; ' | cut -c1-1200)
+          if [ -n "$MSG" ]; then echo "::error::cargo check exit=$CODE $MSG"
+          else echo "::notice::cargo check exit=$CODE"; fi
           exit 0
 
       - uses: tauri-apps/tauri-action@v0

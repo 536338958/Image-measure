@@ -17,9 +17,13 @@ tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
-# 仅 Linux：直接操作 WebKitGTK 启用 getUserMedia（见 src/linux_media.rs）
+# 仅 Linux：直接操作 WebKitGTK 启用 getUserMedia（见 src/linux_media.rs）。
+# 必须与 tauri 2.x 用同一条版本线：
+#   - webkit2gtk 0.18.x 是旧版本线（对应 gtk 0.15），与 tauri 现用的 2.x（gtk 0.18）混用
+#     会触发 gtk-sys 的 links="gtk-3" 冲突；
+#   - v2_40 feature 只存在于 webkit2gtk 2.0.x（0.18.x 里没有该 feature，解析直接失败）。
 [target.'cfg(target_os = "linux")'.dependencies]
-webkit2gtk = { version = "0.18", features = ["v2_40"] }
+webkit2gtk = { version = "2", features = ["v2_40"] }
 
 [profile.release]
 strip = true
