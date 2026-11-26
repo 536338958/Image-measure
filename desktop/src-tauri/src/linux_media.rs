@@ -43,17 +43,15 @@ fn is_trusted_media_origin(uri: &str) -> bool {
 }
 
 /// 为 webview 启用音视频采集（仅 Linux WebKitGTK 有效，其它平台 no-op）。
-/// 从共享启动代码无条件调用即可。
+/// 从共享启动代码无条件调用即可（参数是 setup 里拿到的 WebviewWindow）。
 #[cfg(target_os = "linux")]
-pub fn enable_media_capture(webview: &tauri::Webview) {
-    use webkit2gtk::{
-        glib::prelude::*, PermissionRequestExt, SettingsExt, UserMediaPermissionRequest,
-        UserMediaPermissionRequestExt, WebViewExt,
-    };
+pub fn enable_media_capture(window: &tauri::WebviewWindow) {
+    use gtk::prelude::*;
+    use webkit2gtk::{PermissionRequestExt, SettingsExt, UserMediaPermissionRequest, WebViewExt};
 
-    // with_webview 把闭包排到 UI 线程执行（GTK 调用必须在 UI 线程）。
-    let result = webview.with_webview(move |platform_webview| {
-        // Linux 上这就是底层的 webkit2gtk::WebView。
+    // with_webview 把闭包排到 UI 线程执行（GTK 调用必须在 UI 线程），
+    // 闭包参数就是平台 webview 句柄，Linux 上 inner() 即 webkit2gtk::WebView。
+    let result = window.with_webview(move |platform_webview| {
         let webview = platform_webview.inner();
 
         // 老版 WebKitGTK 默认关闭；不开 navigator.mediaDevices 就不存在。

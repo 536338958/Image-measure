@@ -261,6 +261,7 @@ dependencies = [
 name = "cammeasure"
 version = "1.0.0"
 dependencies = [
+ "gtk",
  "serde",
  "serde_json",
  "tauri",
