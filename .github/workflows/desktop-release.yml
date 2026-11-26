@@ -66,6 +66,22 @@ jobs:
         run: npx tauri icon src-tauri/icons/app-icon.png
         working-directory: desktop
 
+      # 诊断探针：把真实报错写进 job summary（匿名可读），便于定位构建失败原因
+      - name: Probe build (diagnostics to summary)
+        if: matrix.platform == 'ubuntu-22.04'
+        continue-on-error: true
+        run: |
+          {
+            echo '## cargo metadata probe'
+            echo '```'
+            (cd desktop/src-tauri && cargo metadata --no-deps --format-version 1 2>&1 | tail -40)
+            echo '```'
+            echo '## tauri build probe (max 300s)'
+            echo '```'
+            (cd desktop && timeout 300 npx tauri build 2>&1 | tail -120)
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
