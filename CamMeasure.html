@@ -112,6 +112,13 @@
   .agrid .arow .asl{flex:1;min-width:0;height:16px;cursor:pointer;accent-color:var(--accent)}
   .agrid .ain{width:52px;flex:none;background:var(--panel2);border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:5px 6px;font-size:12px;text-align:center}
   .agrid .ain:focus{outline:none;border-color:var(--accent)}
+  /* 精度按钮行（自适应 + 0~5） */
+  .prow{display:flex;gap:4px;flex-wrap:wrap;padding:2px 14px 10px}
+  .prow .mini{flex:1;min-width:30px;text-align:center;padding:4px 0}
+  /* 测量项锁定按钮 */
+  .mitem .lockm{background:none;border:none;color:var(--muted);cursor:pointer;font-size:13.5px;padding:0 3px;line-height:1;flex:none}
+  .mitem .lockm:hover{color:var(--accent)}
+  .mitem .lockm.on{color:var(--warn)}
   .side-h{padding:10px 14px;border-bottom:1px solid var(--line);font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:space-between}
   .mlist{flex:1;overflow-y:auto;padding:6px}
   .mitem{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:6px 4px;font-size:13px;display:flex;flex-direction:column;gap:4px;cursor:pointer;transition:.12s}
@@ -372,9 +379,12 @@
     <button class="tool" data-mode="ellipse" data-tip="椭圆"><svg class="ic" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="9" ry="6"/></svg></button>
     <button class="tool" data-mode="rect" data-tip="矩形"><svg class="ic" viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" rx="1.5"/></svg></button>
     <button class="tool" data-mode="polygon" data-tip="多边形"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3 L21 10 L17.4 20.5 L6.6 20.5 L3 10 Z"/></svg></button>
+    <button class="tool" data-mode="polyarc" data-tip="曲边多边形"><svg class="ic" viewBox="0 0 24 24"><path d="M4 7 A 8 8 0 0 1 19 6 L20 16 A 9 9 0 0 1 6 18 Z"/><circle cx="4" cy="7" r="1.6" fill="currentColor" stroke="none"/><circle cx="19" cy="6" r="1.6" fill="currentColor" stroke="none"/><circle cx="20" cy="16" r="1.6" fill="currentColor" stroke="none"/><circle cx="6" cy="18" r="1.6" fill="currentColor" stroke="none"/></svg></button>
     <button class="tool" data-mode="spline" data-tip="样条曲线"><svg class="ic" viewBox="0 0 24 24"><path d="M3 16 C7 6 11 6 13 12 S19 18 21 8"/></svg></button>
     <div class="sep"></div>
+    <button class="tool" data-mode="text" data-tip="文字标注"><svg class="ic" viewBox="0 0 24 24"><path d="M5 6 H19 M12 6 V19"/></svg></button>
     <button class="tool" data-mode="aux" data-tip="辅助线"><svg class="ic" viewBox="0 0 24 24"><line x1="4.5" y1="19.5" x2="19.5" y2="4.5" stroke-dasharray="3 2.5"/><path d="M4.5 19.5 L8 18.9 M4.5 19.5 L5.1 16" /><path d="M19.5 4.5 L16 5.1 M19.5 4.5 L18.9 8"/></svg></button>
+    <button class="tool" data-mode="clip" data-tip="剪贴图"><svg class="ic" viewBox="0 0 24 24"><circle cx="6" cy="7" r="2.2"/><circle cx="6" cy="17" r="2.2"/><path d="M8 8.5 L19 16.5 M8 15.5 L19 7.5"/></svg></button>
     <div class="sep"></div>
     <button class="tool" data-mode="pan" data-tip="平移"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3 L12 21 M3 12 L21 12 M9.5 5.5 L12 3 L14.5 5.5 M9.5 18.5 L12 21 L14.5 18.5 M5.5 9.5 L3 12 L5.5 14.5 M18.5 9.5 L21 12 L18.5 14.5"/></svg></button>
     <div class="spacer"></div>
@@ -463,6 +473,16 @@
         <div class="wsrow"><input type="range" id="gWidth" min="0.5" max="12" step="0.1" value="2"><input type="number" id="gWidthNum" class="wbox" min="0.5" max="12" step="0.1" value="2"><span class="cap">px</span></div>
         <div class="tip" data-i18n="globalOnlyTip">仅对之后绘制的图形生效；已画好的在列表里展开可单独改</div>
       </div>
+      <details class="scalebox anglebox fxbox" id="dispBox">
+        <summary><span data-i18n="dispTitle">显示设置</span><span class="amini" data-i18n="dispMini">精度 / 放大镜</span></summary>
+        <div style="padding:2px 14px 12px">
+          <div class="frow"><span data-i18n="precisionLabel">小数精度</span><span class="fval" id="precisionVal"></span></div>
+          <div class="prow" id="precisionRow"></div>
+          <div class="frow"><span data-i18n="loupeSize">放大镜大小</span><input type="range" id="loupeR" min="0" max="300" step="2" value="0"><span class="fval" id="loupeRV"></span></div>
+          <div class="frow"><span data-i18n="loupeMag">放大镜倍率</span><input type="range" id="loupeM" min="2" max="12" step="0.5" value="4.5"><span class="fval" id="loupeMV"></span></div>
+          <div class="tip" data-i18n="dispTip">小数精度控制所有测量读数的位数；放大镜开启后按 Alt+滚轮 也可调倍率</div>
+        </div>
+      </details>
       <details class="scalebox anglebox" id="angleBox">
         <summary><span data-i18n="angleTitle">约束角度 (°)</span><span class="amini" data-i18n="angleMini">含平行/垂直</span></summary>
         <div class="agrid" id="angleGrid"></div>
@@ -542,7 +562,11 @@
     rect:     {label:"矩形",  en:"Rect",     click:2, hint:"点对角两点（按住 Shift = 正方形）"},
     polygon:  {label:"多边形",en:"Polygon",  click:0, hint:"依次点击各顶点，双击或回车闭合"},
     spline:   {label:"样条曲线",en:"Spline", click:0, hint:"依次点击控制点，双击或回车结束"},
-    aux:      {label:"辅助线",  en:"Guide",   click:2, hint:"点击两点确定方向，辅助线向两端无限延伸（虚线）"}
+    polyarc:  {label:"曲边多边形",en:"PolyArc", click:0, hint:"依次点击各顶点，双击或回车闭合；选中后双击边线切换弧边，拖动弧上圆点调整弯度"},
+    text:     {label:"文字标注",en:"Text",    click:1, hint:"点击标注位置，输入文字"},
+    aux:      {label:"辅助线",  en:"Guide",   click:2, hint:"点击两点确定方向，辅助线向两端无限延伸（虚线）"},
+    // clip 不是测量：两点框选一块区域，把该区域（含标注）复制到剪贴板
+    clip:     {label:"剪贴图",  en:"Clip",    click:2, hint:"框选一块区域，复制到剪贴板（含标注）"}
   };
   // 常用标准色（20 色）：覆盖整圈色相，并额外提供白 / 近黑，便于在任意底色的照片上都看得清
   const STD_COLORS=["#ff3b30","#ff6b35","#ff9500","#ffcc00","#a3e635","#34c759","#00c78c","#00c7be",
@@ -558,6 +582,8 @@
     drag:null, panning:false, panStart:null, viewStart:null,
     loupe:false, mouseSp:null, showRadius:false, snapPt:null, extSegs:[], hoverId:null,
     gColor:"#4c9aff", gLineW:2, scaleLocked:false,
+    precision:null,          // 小数位数 0~5；null = 自适应（>=100:1位 / >=10:2位 / 否则3位）
+    loupeR:0, loupeM:4.5,    // 放大镜可调：半径（0=默认152）、倍率
     constrain:false, touch:null, nudged:false, adjusting:false,
     customAngles:["30","45","60","","","","","","",""],
     langPref:"auto", lang:"zh",
@@ -942,7 +968,9 @@
           <li><b>椭圆</b>：点外接矩形对角两点（按住 <kbd>Shift</kbd> = 正圆）。</li>
           <li><b>矩形</b>：点对角两点（按住 <kbd>Shift</kbd> = 正方形）。</li>
           <li><b>多边形</b>：依次点各顶点，<kbd>双击</kbd> 或 <kbd>Enter</kbd> 闭合。</li>
+          <li><b>曲边多边形</b>：先像多边形一样点出各顶点闭合；选中后<b>双击任一边</b>在直线/圆弧间切换，出现弧边后拖动弧上的<b>圆点手柄</b>调整弯度，可测含弧边的面积与周长。</li>
           <li><b>样条曲线</b>：依次点控制点，<kbd>双击</kbd> 或 <kbd>Enter</kbd> 结束。</li>
+          <li><b>文字标注</b>：点击位置并输入文字，可拖动、改颜色，随工程一起保存。</li>
           <li><b>辅助线</b>：点两点确定方向，虚线向两端无限延伸，仅作参考、不计入测量。</li>
         </ul>
 
@@ -951,6 +979,8 @@
           <li>用「▲ 选择」工具点中某个图形，可拖动整体或单个控制点。</li>
           <li>选中后按 <kbd>方向键</kbd> 微调 1 像素，<kbd>Shift</kbd>+方向键 移动 10 像素。</li>
           <li>按 <kbd>Delete</kbd> / <kbd>Backspace</kbd> 删除选中项；多边形/样条上删除会移除单个顶点。</li>
+          <li><b>锁定单条测量</b>：测量列表中点 <b>🔒</b> 锁定该条；锁定后不能拖动、微调、删点，防止误碰，解锁后恢复。</li>
+          <li><b>顶点精确输入</b>：选中图形并点中一个顶点手柄后按 <kbd>E</kbd>（或双击顶点），输入精确的 x, y 坐标。</li>
           <li>作图或拖动时会自动<b>吸附</b>到已有端点、圆心、线段及其延长线。</li>
           <li>标注文字可直接拖动到合适位置。</li>
         </ul>
@@ -971,8 +1001,10 @@
 
         <h4>辅助功能</h4>
         <ul>
-          <li><b>🔍 放大镜</b>：开启后在指针处显示局部放大，便于精准取点。</li>
+          <li><b>🔍 放大镜</b>：开启后在指针处显示局部放大，便于精准取点。大小与倍率可在右侧「显示设置」里调，开启后 <kbd>Alt</kbd>+滚轮 也可调倍率。</li>
           <li><b>◔ 半径</b>：切换圆/弧显示半径或直径。</li>
+          <li><b>小数精度</b>：右侧「显示设置」可选自适应或固定 0~5 位小数，作用于全部测量读数。</li>
+          <li><b>✂ 剪贴图</b>：框选一块区域，连同标注一起复制到剪贴板，可直接粘贴到聊天/文档；不支持的浏览器会自动改为下载。</li>
           <li><b>适应窗口</b>：将图片缩放至完整可见。滚轮缩放，按住空格或用「平移」工具拖动画面。</li>
           <li><b>颜色 / 线宽</b>：右侧可设全局样式；在列表中展开单条可单独覆盖其颜色与线宽。</li>
         </ul>
@@ -1041,7 +1073,29 @@
       toastMagPositive:"请输入大于 0 的放大倍率", magHint:"× 倍率(显微镜)",
       calibApply:"应用", calibDel:"删", calibSaveCur:"保存当前标定", calibSelPh:"选择标定",
       calibNamePrompt:"标定名称：", calibNameEmpty:"名称不能为空", calibOverwrite:"同名标定已存在，覆盖？", calibSaved:"标定已保存", calibApplied:"标定已应用", calibDelConfirm:"删除标定「{0}」？",
-      toastNoScale:"当前没有可保存的标定", gridSizePrompt:"网格间距（图像像素）："
+      toastNoScale:"当前没有可保存的标定", gridSizePrompt:"网格间距（图像像素）：",
+      // ---- A 组功能 ----
+      dispTitle:"显示设置", dispMini:"精度 / 放大镜",
+      precisionLabel:"小数精度", precisionAuto:"自适应",
+      loupeSize:"放大镜大小", loupeMag:"放大镜倍率",
+      dispTip:"小数精度控制所有测量读数的位数；放大镜开启后按 Alt+滚轮 也可调倍率",
+      hint_polyarc:"依次点击各顶点，双击或回车闭合；选中后双击边线切换弧边，拖动弧上圆点调整弯度",
+      hint_text:"点击标注位置，输入文字", hint_clip:"框选一块区域，复制到剪贴板（含标注）",
+      lockMeasure:"锁定 / 解锁该测量（锁定后不可拖动、微调或改顶点）",
+      lockOn:"已锁定", lockOff:"未锁定",
+      toastMeasureLocked:"该测量已锁定，请先在列表中解锁",
+      textPrompt:"标注文字：",
+      clipNeedStatic:"剪贴图需要静态图片，实时视图请先拍照冻结",
+      toastClipSmall:"选区太小，请重新框选",
+      toastClipDone:"已复制到剪贴板",
+      toastClipFail:"复制到剪贴板失败",
+      toastClipFallback:"此浏览器不支持剪贴板图片，已改为下载 PNG",
+      vtxPrompt:"顶点坐标（图像像素，逗号分隔）：",
+      vtxBad:"格式错误：请输入 x, y 两个数字",
+      vtxPickFirst:"请先抓取一个顶点手柄（点选图形的方形手柄）",
+      vtxApplied:"顶点已更新",
+      toastArcToggled:"已切换为弧边", toastArcLine:"已切换为直边",
+      textType:"文字", loupeDefault:"默认"
     },
     en:{
       docTitle:"Live Measure · CamMeasure Pro",
@@ -1071,7 +1125,9 @@
           <li><b>Ellipse</b>: click two opposite corners of the bounding box (hold <kbd>Shift</kbd> = circle).</li>
           <li><b>Rect</b>: click two opposite corners (hold <kbd>Shift</kbd> = square).</li>
           <li><b>Polygon</b>: click each vertex; <kbd>double-click</kbd> or <kbd>Enter</kbd> to close.</li>
+          <li><b>PolyArc</b>: place vertices like a polygon; once selected, <b>double-click any edge</b> to toggle it between straight and curved, then drag the <b>round handle</b> on the arc to bend it. Area and perimeter include arc edges.</li>
           <li><b>Spline</b>: click control points; <kbd>double-click</kbd> or <kbd>Enter</kbd> to finish.</li>
+          <li><b>Text</b>: click a spot and type a note; it can be dragged, recolored and saved with the project.</li>
           <li><b>Guide</b>: click two points to set a direction; the dashed line extends infinitely and is reference-only (not measured).</li>
         </ul>
 
@@ -1080,6 +1136,8 @@
           <li>Use the "▲ Select" tool to pick a shape, then drag the whole shape or a single handle.</li>
           <li>With a shape selected, <kbd>arrow keys</kbd> nudge by 1 px, <kbd>Shift</kbd>+arrow by 10 px.</li>
           <li>Press <kbd>Delete</kbd> / <kbd>Backspace</kbd> to remove the selection; on a polygon/spline it removes a single vertex.</li>
+          <li><b>Lock a measurement</b>: click <b>🔒</b> in the list to lock it — no dragging, nudging or vertex edits until unlocked.</li>
+          <li><b>Exact vertex input</b>: select a shape, grab a vertex handle, then press <kbd>E</kbd> (or double-click the vertex) and type exact x, y coordinates.</li>
           <li>Drawing and dragging <b>snap</b> to existing endpoints, centers, segments and their extensions.</li>
           <li>Labels can be dragged to reposition them.</li>
         </ul>
@@ -1100,8 +1158,10 @@
 
         <h4>Helpers</h4>
         <ul>
-          <li><b>🔍 Magnifier</b>: shows a zoomed loupe at the cursor for precise picking.</li>
+          <li><b>🔍 Magnifier</b>: shows a zoomed loupe at the cursor for precise picking. Size and zoom are adjustable under "Display" on the right; <kbd>Alt</kbd>+wheel changes zoom while on.</li>
           <li><b>◔ Radius</b>: toggle circles/arcs between radius and diameter.</li>
+          <li><b>Decimals</b>: "Display" on the right offers auto or fixed 0–5 decimals for every readout.</li>
+          <li><b>✂ Clip</b>: drag a box; the region (annotations included) is copied to the clipboard, ready to paste into chat or docs. Unsupported browsers fall back to a PNG download.</li>
           <li><b>Fit</b>: scale the image to fit the view. Scroll to zoom; hold space or use the "Pan" tool to move.</li>
           <li><b>Color / width</b>: set global style on the right; expand a list item to override its color and width individually.</li>
         </ul>
@@ -1170,7 +1230,29 @@
       toastMagPositive:"Enter a magnification greater than 0", magHint:"× mag (microscope)",
       calibApply:"Apply", calibDel:"Del", calibSaveCur:"Save current", calibSelPh:"pick a calibration",
       calibNamePrompt:"Calibration name:", calibNameEmpty:"Name cannot be empty", calibOverwrite:"A calibration with this name exists. Overwrite?", calibSaved:"Calibration saved", calibApplied:"Calibration applied", calibDelConfirm:"Delete calibration \"{0}\"?",
-      toastNoScale:"Nothing calibrated to save yet", gridSizePrompt:"Grid spacing (image px):"
+      toastNoScale:"Nothing calibrated to save yet", gridSizePrompt:"Grid spacing (image px):",
+      // ---- group A features ----
+      dispTitle:"Display", dispMini:"precision / loupe",
+      precisionLabel:"Decimals", precisionAuto:"Auto",
+      loupeSize:"Loupe size", loupeMag:"Loupe zoom",
+      dispTip:"Decimal precision controls every readout; with the loupe on, Alt+wheel also adjusts zoom",
+      hint_polyarc:"Click each vertex; double-click or Enter to close. When selected, double-click an edge to curve it, then drag the round handle to bend",
+      hint_text:"Click where the label goes, then type the text", hint_clip:"Drag a box; the region (with annotations) is copied to the clipboard",
+      lockMeasure:"Lock / unlock this measurement (locked: no drag, nudge or vertex edit)",
+      lockOn:"Locked", lockOff:"Unlocked",
+      toastMeasureLocked:"This measurement is locked — unlock it in the list first",
+      textPrompt:"Label text:",
+      clipNeedStatic:"Clip needs a static image; freeze the live view first",
+      toastClipSmall:"Selection too small — drag a larger box",
+      toastClipDone:"Copied to clipboard",
+      toastClipFail:"Failed to copy to clipboard",
+      toastClipFallback:"Clipboard images unsupported here — downloaded a PNG instead",
+      vtxPrompt:"Vertex coordinates (image px, comma-separated):",
+      vtxBad:"Invalid format: enter two numbers x, y",
+      vtxPickFirst:"Grab a vertex handle first (the square handle of a selected shape)",
+      vtxApplied:"Vertex updated",
+      toastArcToggled:"Edge curved", toastArcLine:"Edge straightened",
+      textType:"Text", loupeDefault:"Default"
     }
   };
   function resolveLang(){
@@ -1239,10 +1321,12 @@
   // ---------- math ----------
   const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
   const mid=(a,b)=>({x:(a.x+b.x)/2,y:(a.y+b.y)/2});
+  // fmt：通用数值格式化（线宽等 UI 数值）；fmtU：测量读数格式化（受 S.precision 控制）
   function fmt(n){if(n==null||!isFinite(n))return"—";const a=Math.abs(n);let d=a>=100?1:a>=10?2:3;return n.toFixed(d).replace(/\.?0+$/,'');}
+  function fmtU(n){if(n==null||!isFinite(n))return"—";if(S.precision!=null)return n.toFixed(S.precision);return fmt(n);}
   const px2u=px=>S.pxPerUnit?px/S.pxPerUnit:null;
-  function U(v,dim){if(v==null)return L("notCalibrated");return fmt(v)+" "+S.unit+(dim===2?"²":"");}
-  const calibText=()=>S.calibLine?(L("scalePrefix")+fmt(S.calibLine.realLen)+S.calibLine.unit):"";
+  function U(v,dim){if(v==null)return L("notCalibrated");return fmtU(v)+" "+S.unit+(dim===2?"²":"");}
+  const calibText=()=>S.calibLine?(L("scalePrefix")+fmtU(S.calibLine.realLen)+S.calibLine.unit):"";
   function imgToScreen(p){return{x:p.x*S.view.scale+S.view.ox,y:p.y*S.view.scale+S.view.oy};}
   function screenToImg(p){return{x:(p.x-S.view.ox)/S.view.scale,y:(p.y-S.view.oy)/S.view.scale};}
 
@@ -1258,6 +1342,71 @@
   function catmull(pts,seg){if(pts.length<3)return pts.slice();const out=[];for(let i=0;i<pts.length-1;i++){const p0=pts[i-1]||pts[i],p1=pts[i],p2=pts[i+1],p3=pts[i+2]||pts[i+1];for(let j=0;j<seg;j++){const t=j/seg,t2=t*t,t3=t2*t;out.push({x:0.5*((2*p1.x)+(-p0.x+p2.x)*t+(2*p0.x-5*p1.x+4*p2.x-p3.x)*t2+(-p0.x+3*p1.x-3*p2.x+p3.x)*t3),y:0.5*((2*p1.y)+(-p0.y+p2.y)*t+(2*p0.y-5*p1.y+4*p2.y-p3.y)*t2+(-p0.y+3*p1.y-3*p2.y+p3.y)*t3)});}}out.push(pts[pts.length-1]);return out;}
   function ellipseInfo(p){const cx=(p[0].x+p[1].x)/2,cy=(p[0].y+p[1].y)/2,rx=Math.abs(p[1].x-p[0].x)/2,ry=Math.abs(p[1].y-p[0].y)/2;return{cx,cy,rx,ry};}
   function circleOf(m){if(m.type==="circle")return{center:m.pts[0],r:dist(m.pts[0],m.pts[1])};if(m.pts.length<3)return null;const cc=circumcircle(m.pts[0],m.pts[1],m.pts[2]);return cc?{center:cc.center,r:cc.r}:null;}
+  // ---------- 曲边多边形（polyarc）----------
+  // 数据模型：pts = 顶点；arcs[i] = 第 i 条边（pts[i]→pts[i+1]，最后一条闭合回 pts[0]）上的
+  // 一个「弧上参考点」；null = 直边。弧边由 (端点A, 参考点C, 端点B) 三点唯一确定，
+  // 拖动顶点时弧自动跟随，拖动参考点即调弯度——无需 bulge 之类的中间参数。
+  function polyarcEdge(m,i){const p=m.pts,n=p.length;return{A:p[i],B:p[(i+1)%n],C:(m.arcs&&m.arcs[i])||null};}
+  function polyarcEdgePts(m,i,n){const e=polyarcEdge(m,i);if(!e.C)return null;const a=arcSamples(e.A,e.C,e.B,n||24);return a?a.pts:null;}
+  // 每条边的折线（直边两点 / 弧边采样），渲染、命中、吸附共用
+  function polyarcOutline(m,n){const out=[];const nE=m.pts.length;for(let i=0;i<nE;i++){const pts=polyarcEdgePts(m,i,n);if(pts)out.push(pts);else{const e=polyarcEdge(m,i);out.push([e.A,e.B]);}}return out;}
+  // 弧边真正中点（采样序列中间那点），用于画弧手柄
+  function polyarcMid(m,i){const pts=polyarcEdgePts(m,i,12);if(!pts)return null;return pts[Math.floor(pts.length/2)];}
+  // 弓形有向面积：弧边相对弦多出/少掉的部分。side = 参考点在弦的哪一侧。
+  function segArea(A,B,C){const cc=circumcircle(A,C,B);if(!cc)return 0;const a=arcSamples(A,C,B,64);if(!a)return 0;
+    const seg=0.5*cc.r*cc.r*(a.sweep-Math.sin(a.sweep)); // 弓形面积
+    const cross=(B.x-A.x)*(C.y-A.y)-(B.y-A.y)*(C.x-A.x);
+    return cross>0?-seg:seg;}
+  // polyarc 完整几何：周长（px）+ 面积（px²）+ 弧边数
+  function polyarcInfo(m){
+    const p=m.pts,n=p.length;
+    let per=0,area=0,nArc=0;
+    for(let i=0;i<n;i++){
+      const e=polyarcEdge(m,i);
+      area+=p[i].x*e.B.y-e.B.x*p[i].y; // 顶点多边形有向面积
+      if(e.C){
+        const a=arcSamples(e.A,e.C,e.B,64);
+        if(a&&a.sweep>1e-6){per+=a.r*a.sweep;area+=segArea(e.A,e.B,e.C);nArc++;}
+        else per+=dist(e.A,e.B);
+      }else per+=dist(e.A,e.B);
+    }
+    return{per,area:Math.abs(area/2),nArc};
+  }
+  // 双击边线：直↔弧切换。转弧时参考点放在边中点「外侧」（远离多边形质心）20% 边长处。
+  function togglePolyarcEdge(m,i){
+    if(m.locked){toast(L("toastMeasureLocked"));return false;}
+    const e=polyarcEdge(m,i);
+    if(!m.arcs)m.arcs=new Array(m.pts.length).fill(null);
+    if(m.arcs[i]){
+      m.arcs[i]=null;commit();renderList();draw();toast(L("toastArcLine"));return true;
+    }
+    const c=centroid(m.pts);
+    let mx=(e.A.x+e.B.x)/2,my=(e.A.y+e.B.y)/2;
+    const len=dist(e.A,e.B);
+    // 外法向：边方向旋转 90°，取指向远离质心的一侧
+    let nx=-(e.B.y-e.A.y)/len,ny=(e.B.x-e.A.x)/len;
+    if(nx*(mx-c.x)+ny*(my-c.y)<0){nx=-nx;ny=-ny;}
+    m.arcs[i]={x:mx+nx*len*0.2,y:my+ny*len*0.2};
+    S.selId=m.id;S.active=-1;
+    commit();renderList();draw();toast(L("toastArcToggled"));return true;
+  }
+  // 在 sp（屏幕坐标）附近找 polyarc 的边（弧边用采样折线），返回 {m,index}
+  function polyarcEdgeAt(sp){
+    const cands=[];
+    if(S.selId!=null){const s=getM(S.selId);if(s)cands.push(s);}
+    for(let i=S.measures.length-1;i>=0;i--){if(!cands.includes(S.measures[i]))cands.push(S.measures[i]);}
+    for(const m of cands){
+      if(!m||m.type!=="polyarc"||!m.pts||m.pts.length<3)continue;
+      const edges=polyarcOutline(m,20);
+      for(let i=0;i<edges.length;i++){
+        const P=edges[i].map(imgToScreen);
+        for(let j=0;j<P.length-1;j++){
+          if(pointSegDist(sp,P[j],P[j+1])<10)return{m,index:i};
+        }
+      }
+    }
+    return null;
+  }
 
   // ---------- compute ----------
   function computeShape(m){
@@ -1265,16 +1414,18 @@
     try{
       switch(m.type){
         case "line":{const L=px2u(dist(p[0],p[1]));return{text:U(L,1),detail:"",kind:"length",value:L};}
-        case "angle":{const a=angleDeg(p[0],p[1],p[2]);return{text:fmt(a)+"°",detail:"",kind:"angle",value:a};}
+        case "angle":{const a=angleDeg(p[0],p[1],p[2]);return{text:fmtU(a)+"°",detail:"",kind:"angle",value:a};}
         case "parallel":{const d=px2u(pointLineDist(p[2],p[0],p[1]));return{text:U(d,1),detail:L("gapParallel"),kind:"length",value:d};}
         case "pointline":{const d=px2u(pointLineDist(p[2],p[0],p[1]));return{text:U(d,1),detail:L("ptToLine"),kind:"length",value:d};}
-        case "arc":{const a=arcSamples(p[0],p[1],p[2],40);if(!a)return{text:"—",detail:L("collinear"),kind:"other"};const R=px2u(a.r),L2=px2u(a.r*a.sweep);return{text:"⌒ "+U(L2,1),detail:"R "+U(R,1)+" · "+fmt(a.sweep*180/Math.PI)+"°",kind:"length",value:L2};}
+        case "arc":{const a=arcSamples(p[0],p[1],p[2],40);if(!a)return{text:"—",detail:L("collinear"),kind:"other"};const R=px2u(a.r),L2=px2u(a.r*a.sweep);return{text:"⌒ "+U(L2,1),detail:"R "+U(R,1)+" · "+fmtU(a.sweep*180/Math.PI)+"°",kind:"length",value:L2};}
         case "circle":case "circle3":{const cir=circleOf(m);if(!cir)return{text:"—",detail:L("collinear"),kind:"other"};const R=px2u(cir.r);if(R==null)return{text:L("notCalibrated"),detail:"",kind:"other"};return{text:"Ø "+U(2*R,1)+" · "+U(Math.PI*R*R,2),detail:"R "+U(R,1)+" · "+L("perimeter")+U(2*Math.PI*R,1),kind:"other"};}
-        case "ellipse":{const e=ellipseInfo(p);const a=px2u(e.rx),b=px2u(e.ry);if(a==null)return{text:L("notCalibrated"),detail:"",kind:"other"};const h=Math.pow(a-b,2)/Math.pow(a+b,2);const C=Math.PI*(a+b)*(1+3*h/(10+Math.sqrt(4-3*h)));return{text:fmt(2*a)+"×"+fmt(2*b)+" "+S.unit+" · "+U(Math.PI*a*b,2),detail:L("perimeter")+U(C,1),kind:"other"};}
-        case "rect":{const w=px2u(Math.abs(p[1].x-p[0].x)),h=px2u(Math.abs(p[1].y-p[0].y));if(w==null)return{text:L("notCalibrated"),detail:"",kind:"other"};return{text:fmt(w)+"×"+fmt(h)+" "+S.unit+" · "+U(w*h,2),detail:L("perimeter")+U(2*(w+h),1),kind:"other"};}
+        case "ellipse":{const e=ellipseInfo(p);const a=px2u(e.rx),b=px2u(e.ry);if(a==null)return{text:L("notCalibrated"),detail:"",kind:"other"};const h=Math.pow(a-b,2)/Math.pow(a+b,2);const C=Math.PI*(a+b)*(1+3*h/(10+Math.sqrt(4-3*h)));return{text:fmtU(2*a)+"×"+fmtU(2*b)+" "+S.unit+" · "+U(Math.PI*a*b,2),detail:L("perimeter")+U(C,1),kind:"other"};}
+        case "rect":{const w=px2u(Math.abs(p[1].x-p[0].x)),h=px2u(Math.abs(p[1].y-p[0].y));if(w==null)return{text:L("notCalibrated"),detail:"",kind:"other"};return{text:fmtU(w)+"×"+fmtU(h)+" "+S.unit+" · "+U(w*h,2),detail:L("perimeter")+U(2*(w+h),1),kind:"other"};}
+        case "polyarc":{const PA=polyarcInfo(m);return{text:L("area")+U(PA.area,2),detail:L("perimeter")+U(PA.per,1)+" · "+p.length+L("sides")+(PA.nArc?" · "+PA.nArc+"⌒":""),kind:"other"};}
         case "polygon":{const per=px2u(polyPerim(p,true));const areaU=S.pxPerUnit?polyArea(p)/(S.pxPerUnit*S.pxPerUnit):null;return{text:L("area")+U(areaU,2),detail:L("perimeter")+U(per,1)+" · "+p.length+L("sides"),kind:"other"};}
         case "spline":{const s=catmull(p,18);let L2=0;for(let i=0;i<s.length-1;i++)L2+=dist(s[i],s[i+1]);const lu=px2u(L2);return{text:L("curve")+U(lu,1),detail:p.length+L("points"),kind:"length",value:lu};}
-        case "aux":{if(p.length<2)return{text:L("guide"),detail:"",kind:"other"};let ang=Math.atan2(p[1].y-p[0].y,p[1].x-p[0].x)*180/Math.PI;ang=((ang%180)+180)%180;return{text:fmt(ang)+"°",detail:L("guide"),kind:"other"};}
+        case "text":{return{text:m.text||"",detail:L("textType"),kind:"other"};}
+        case "aux":{if(p.length<2)return{text:L("guide"),detail:"",kind:"other"};let ang=Math.atan2(p[1].y-p[0].y,p[1].x-p[0].x)*180/Math.PI;ang=((ang%180)+180)%180;return{text:fmtU(ang)+"°",detail:L("guide"),kind:"other"};}
       }
     }catch(e){}
     return{text:"—",detail:"",kind:"other"};
@@ -1349,7 +1500,7 @@
     S.measures.forEach(m=>{
       const bw=(m.lw||S.gLineW);
       renderShape(g,m,T,{k,lw:bw+(m.id===S.selId?0.8:0),fs:12,cacheLbl:opt.cacheLbl,
-        handles:opt.handles&&(S.mode==="select"&&m.id===S.selId),
+        handles:opt.handles&&(S.mode==="select"&&m.id===S.selId)&&!m.locked,
         // 悬停时临时亮出端点/边中点。若它此刻正在显示方形手柄（select 模式下的选中项），
         // 就不叠第二套标记；其余情况都显示——包含「绘图模式下悬停到已完成的图形」，
         // 那正是画新线时要对齐旧线端点/中点的时候。
@@ -1395,6 +1546,24 @@
     else if(t==="ellipse"){if(P.length>=2){const e=ellipseInfo(m.pts);const c=T({x:e.cx,y:e.cy});g.beginPath();g.ellipse(c.x,c.y,e.rx*k,e.ry*k,0,0,Math.PI*2);g.stroke();g.setLineDash([3,4]);g.strokeStyle="rgba(255,255,255,.25)";g.strokeRect(Math.min(P[0].x,P[1].x),Math.min(P[0].y,P[1].y),Math.abs(P[1].x-P[0].x),Math.abs(P[1].y-P[0].y));g.strokeStyle=col;g.setLineDash([]);centerImg={x:e.cx,y:e.cy};anchor={x:c.x,y:c.y-e.ry*k};}else anchor=P[0];}
     else if(t==="rect"){if(P.length>=2){const x0=Math.min(P[0].x,P[1].x),y0=Math.min(P[0].y,P[1].y),w=Math.abs(P[1].x-P[0].x),h=Math.abs(P[1].y-P[0].y);g.strokeRect(x0,y0,w,h);centerImg={x:(m.pts[0].x+m.pts[1].x)/2,y:(m.pts[0].y+m.pts[1].y)/2};anchor={x:x0+w/2,y:y0};}else anchor=P[0];}
     else if(t==="polygon"){const closeIt=!opt.draft;stroke(P,closeIt&&P.length>2);if(P.length>2){g.globalAlpha=.08;g.beginPath();P.forEach((p,i)=>i?g.lineTo(p.x,p.y):g.moveTo(p.x,p.y));g.closePath();g.fill();g.globalAlpha=1;}anchor=P.length?T(centroid(m.pts)):null;}
+    else if(t==="polyarc"){
+      // 逐边绘制：直边两点、弧边按三点采样；整体闭合后填充
+      const all=[];polyarcOutline(m,24).forEach(pts=>pts.forEach(q=>{const s=T(q);if(all.length&&s.x===all[all.length-1].x&&s.y===all[all.length-1].y)return;all.push(s);}));
+      const closeIt=!opt.draft&&P.length>2;
+      if(all.length>=2){stroke(all,closeIt);
+        if(closeIt){g.globalAlpha=.08;g.beginPath();all.forEach((p,i)=>i?g.lineTo(p.x,p.y):g.moveTo(p.x,p.y));g.closePath();g.fill();g.globalAlpha=1;}}
+      else stroke(P,false);
+      anchor=P.length?T(centroid(m.pts)):null;
+    }
+    else if(t==="text"){anchor=P.length?P[0]:null;} // 文字本体走下方通用 label 管线（可拖动、有 _lbl 缓存）
+    else if(t==="clip"){ // 仅 draft（剪贴图不会成为测量对象）
+      if(P.length>=2){
+        const x0=Math.min(P[0].x,P[1].x),y0=Math.min(P[0].y,P[1].y),w=Math.abs(P[1].x-P[0].x),h=Math.abs(P[1].y-P[0].y);
+        g.save();g.setLineDash([6,4]);g.strokeRect(x0,y0,w,h);g.setLineDash([]);
+        g.fillStyle="rgba(0,0,0,.35)";g.beginPath();g.rect(-2e4,-2e4,4e4,4e4);g.rect(x0,y0,w,h);g.fill("evenodd");g.restore();
+      }
+      anchor=P.length?mid(P[0],P[P.length-1]):null;
+    }
     else if(t==="spline"){if(m.pts.length>=3){stroke(catmull(m.pts,16).map(T),false);}else stroke(P,false);anchor=P[Math.floor(P.length/2)]||P[0];}
     else if(t==="aux"){if(P.length>=2){const dx=P[1].x-P[0].x,dy=P[1].y-P[0].y,len=Math.hypot(dx,dy)||1,ux=dx/len,uy=dy/len,ext=20000;const a={x:P[0].x-ux*ext,y:P[0].y-uy*ext},b={x:P[1].x+ux*ext,y:P[1].y+uy*ext};const gap=(m.dash!=null?m.dash:5);stroke([a,b],false,[7,gap]);anchor=mid(P[0],P[1]);}else anchor=P[0];}
 
@@ -1406,6 +1575,16 @@
       if(opt.handles){const s=(i===opt.active)?6:5;g.setLineDash([]);g.lineWidth=3;g.strokeStyle="rgba(15,17,21,.85)";g.strokeRect(p.x-s,p.y-s,2*s,2*s);g.lineWidth=(i===opt.active)?2.4:1.7;g.strokeStyle=(i===opt.active)?"#ffffff":col;g.strokeRect(p.x-s,p.y-s,2*s,2*s);/* 透明填充，可见下方图像 */}
       else if(opt.draft){g.setLineDash([]);const r=lw+2.2;g.beginPath();g.arc(p.x,p.y,r,0,7);g.lineWidth=2.6;g.strokeStyle="rgba(15,17,21,.7)";g.stroke();g.lineWidth=1.6;g.strokeStyle=col;g.stroke();/* 空心端点，画线时可见下方图像 */}
     });
+    // 曲边多边形：弧边中点圆手柄（方形=顶点，圆形=弧弯控制，拖动调弯度）
+    if(opt.handles&&m.type==="polyarc"&&m.arcs){
+      m.arcs.forEach((c,i)=>{
+        if(!c)return;
+        const qm=polyarcMid(m,i);if(!qm)return;const q=T(qm);
+        g.setLineDash([]);g.lineWidth=2.6;g.strokeStyle="rgba(15,17,21,.7)";g.beginPath();g.arc(q.x,q.y,5.5,0,7);g.stroke();
+        g.lineWidth=1.6;g.strokeStyle=col;g.beginPath();g.arc(q.x,q.y,5.5,0,7);g.stroke();
+        g.fillStyle=col;g.beginPath();g.arc(q.x,q.y,1.9,0,7);g.fill();
+      });
+    }
 
     // 悬停提示：空心小圆=端点（矩形展示四角），实心小方块=该边中点。
     // 样式刻意做得比「选中手柄」轻一档，一眼能区分是"预览"而不是"已选中"。
@@ -1434,7 +1613,7 @@
     // label
     let text=opt.forceText;
     if(text===undefined&&!opt.draft&&m.id!=null){const c=computeShape(m);text=c.text;}
-    else if(opt.draft&&m.type==="line"&&S.pxPerUnit&&m.pts.length>=2){text=fmt(px2u(dist(m.pts[0],m.pts[1])))+S.unit;}
+    else if(opt.draft&&m.type==="line"&&S.pxPerUnit&&m.pts.length>=2){text=fmtU(px2u(dist(m.pts[0],m.pts[1])))+S.unit;}
     if(text&&anchor){
       const off=m.labelOff||{x:0,y:0};
       const ax=anchor.x+off.x*k, ay=anchor.y+off.y*k;
@@ -1464,6 +1643,8 @@
       case "ellipse":{const e=ellipseInfo(m.pts);const pts=[];for(let i=0;i<=48;i++){const a=i/48*Math.PI*2;pts.push(imgToScreen({x:e.cx+e.rx*Math.cos(a),y:e.cy+e.ry*Math.sin(a)}));}return segs(pts,true);}
       case "rect":{const c=[{x:m.pts[0].x,y:m.pts[0].y},{x:m.pts[1].x,y:m.pts[0].y},{x:m.pts[1].x,y:m.pts[1].y},{x:m.pts[0].x,y:m.pts[1].y}].map(imgToScreen);return segs(c,true);}
       case "polygon":return segs(P,true);
+      case "polyarc":{const edges=polyarcOutline(m,20);for(let k=0;k<edges.length;k++){if(segs(edges[k].map(imgToScreen),false))return true;}return false;}
+      case "text":{return P.length&&dist(P[0],sp)<14;}
       case "spline":return segs(catmull(m.pts,16).map(imgToScreen),false);
       case "aux":{if(m.pts.length<2)return false;return pointLineDist(sp,imgToScreen(m.pts[0]),imgToScreen(m.pts[1]))<tol;}
     }
@@ -1553,9 +1734,22 @@
   window.addEventListener("mouseup",()=>{if(S.panning){S.panning=false;canvas.style.cursor=S.mode==="pan"?"grab":(S.mode==="select"?"default":"crosshair");}if(S.drag){const moved=S.dragMoved;S.drag=null;S.dragMoved=false;if(moved)commit();}if(S.adjusting)placementUp();});
   canvas.addEventListener("mouseleave",()=>{loupeEl.style.display="none";let need=false;if((S.snapPt||(S.extSegs&&S.extSegs.length))&&!S.placing){S.snapPt=null;S.extSegs=[];need=true;}if(S.hoverId!=null){S.hoverId=null;need=true;}if(need)draw();});
   canvas.addEventListener("contextmenu",e=>{if(S.placing){e.preventDefault();cancelPlacing();}});
-  canvas.addEventListener("dblclick",e=>{if(S.placing&&(S.placing.type==="polygon"||S.placing.type==="spline")){popLastIfDuplicate(S.placing.pts);finalizePlacing();e.preventDefault();return;}if(S.mode==="select"&&S.img){const sp=mousePos(e);if(tryInsertVertex(sp))e.preventDefault();}});
+  canvas.addEventListener("dblclick",e=>{
+    if(S.placing&&(S.placing.type==="polygon"||S.placing.type==="polyarc"||S.placing.type==="spline")){popLastIfDuplicate(S.placing.pts);finalizePlacing();e.preventDefault();return;}
+    if(S.mode==="select"&&S.img){const sp=mousePos(e);
+      // 先看顶点手柄：双击顶点 = 精确坐标输入
+      const sm=S.selId!=null?getM(S.selId):null;
+      if(sm&&!sm.locked){const v=handleAt(sm,sp);if(v>=0){S.active=v;editVertex();e.preventDefault();return;}}
+      // 曲边多边形：双击边线 = 直↔弧切换
+      const pa=polyarcEdgeAt(sp);
+      if(pa){togglePolyarcEdge(pa.m,pa.index);e.preventDefault();return;}
+      if(tryInsertVertex(sp))e.preventDefault();}});
 
-  canvas.addEventListener("wheel",e=>{if(!hasSrc())return;e.preventDefault();const sp=mousePos(e);const ip=screenToImg(sp);const f=e.deltaY<0?1.12:1/1.12;S.view.scale=Math.min(80,Math.max(0.02,S.view.scale*f));S.view.ox=sp.x-ip.x*S.view.scale;S.view.oy=sp.y-ip.y*S.view.scale;draw();drawLoupe(sp);updateStatus(sp);},{passive:false});
+  canvas.addEventListener("wheel",e=>{
+    if(!hasSrc())return;e.preventDefault();const sp=mousePos(e);
+    // 放大镜开启时 Alt+滚轮 = 调放大镜倍率（视图缩放让位）
+    if(e.altKey&&S.loupe){S.loupeM=Math.min(12,Math.max(2,(S.loupeM||4.5)+(e.deltaY<0?0.5:-0.5)));syncLoupeUI();drawLoupe(sp);updateStatus(sp);return;}
+    const ip=screenToImg(sp);const f=e.deltaY<0?1.12:1/1.12;S.view.scale=Math.min(80,Math.max(0.02,S.view.scale*f));S.view.ox=sp.x-ip.x*S.view.scale;S.view.oy=sp.y-ip.y*S.view.scale;draw();drawLoupe(sp);updateStatus(sp);},{passive:false});
 
   // 图形中心（封闭图形/圆弧）
   function shapeCenter(m){
@@ -1564,7 +1758,7 @@
     if(m.type==="circle3"||m.type==="arc"){if(p.length<3)return null;const cc=circumcircle(p[0],p[1],p[2]);return cc?cc.center:null;}
     if(m.type==="ellipse"){if(p.length<2)return null;const e=ellipseInfo(p);return{x:e.cx,y:e.cy};}
     if(m.type==="rect"){if(p.length<2)return null;return{x:(p[0].x+p[1].x)/2,y:(p[0].y+p[1].y)/2};}
-    if(m.type==="polygon"){if(!p.length)return null;return centroid(p);}
+    if(m.type==="polygon"||m.type==="polyarc"){if(!p.length)return null;return centroid(p);}
     return null;
   }
   // 直线段（用于线段/延长线吸附）
@@ -1573,6 +1767,7 @@
     case "angle": {const s=[];if(p.length>=2)s.push([p[1],p[0]]);if(p.length>=3)s.push([p[1],p[2]]);return s;}
     case "rect": if(p.length>=2){const a=p[0],b=p[1],c1={x:b.x,y:a.y},c2={x:a.x,y:b.y};return[[a,c1],[c1,b],[b,c2],[c2,a]];} return [];
     case "polygon": {const s=[];for(let i=0;i<p.length;i++)s.push([p[i],p[(i+1)%p.length]]);return s;}
+    case "polyarc": {const s=[];for(let i=0;i<p.length;i++){const e=polyarcEdge(m,i);s.push([e.A,e.B]);}return s;} // 弧边用弦参与吸附/中点
     default: return [];
   }}
   // 收集所有可吸附的直线段（测量图形 + 标尺 + 正在放置的已定点）
@@ -1697,8 +1892,8 @@
     const snap=snapVertex(sp);
     const ipRaw=screenToImg(sp);
     if(!S.placing){S.placing={type:S.mode,pts:[snap||ipRaw]};S.adjusting=true;S.cursorImg=snap||ipRaw;S.snapPt=snap;updatePlaceBar();draw();return;}
-    // polygon close by clicking near start
-    if(S.placing.type==="polygon"&&S.placing.pts.length>=3&&dist(imgToScreen(S.placing.pts[0]),sp)<10){finalizePlacing();return;}
+    // polygon / polyarc close by clicking near start
+    if((S.placing.type==="polygon"||S.placing.type==="polyarc")&&S.placing.pts.length>=3&&dist(imgToScreen(S.placing.pts[0]),sp)<10){finalizePlacing();return;}
     const prev=S.placing.pts[S.placing.pts.length-1];
     const r=placePoint(prev,ipRaw,S.placing.type,CON(e),sp);const np=r.pt;
     S.placing.pts.push(np);S.adjusting=true;S.cursorImg=np;S.snapPt=r.snap;updatePlaceBar();draw();
@@ -1716,14 +1911,21 @@
   function finalizePlacing(){
     if(!S.placing)return;const{type,pts}=S.placing;
     const need=SHAPES[type].click;
-    if((type==="polygon"&&pts.length<3)||(type==="spline"&&pts.length<2)||(need>0&&pts.length<need)){cancelPlacing();return;}
+    if((type==="polygon"&&pts.length<3)||(type==="polyarc"&&pts.length<3)||(type==="spline"&&pts.length<2)||(need>0&&pts.length<need)){cancelPlacing();return;}
+    // 剪贴图不是测量：框完即执行复制
+    if(type==="clip"){const a={x:pts[0].x,y:pts[0].y},b={x:pts[1].x,y:pts[1].y};cancelPlacing();copyCrop(a,b);return;}
+    // 文字标注：先弹输入，取消/留空则放弃
+    let txt=null;
+    if(type==="text"){txt=prompt(L("textPrompt"),"");if(txt==null||!txt.trim()){cancelPlacing();return;}txt=txt.trim();}
     S.counters[type]=(S.counters[type]||0)+1;
     // 落笔即固化当前全局颜色/线宽：之后改全局样式不会回头改变已经画好的线。
     // 想要某条重新跟随全局，用列表里那一项的「↺ 全局」按钮（会把 color/lw 置回 null）。
-    const m={id:S.nextId++,type,label:shapeName(type)+S.counters[type],color:S.gColor,lw:S.gLineW,dash:null,labelOff:null,pts:pts.map(p=>({x:p.x,y:p.y}))};
+    const m={id:S.nextId++,type,label:shapeName(type)+S.counters[type],color:S.gColor,lw:S.gLineW,dash:null,labelOff:null,locked:false,pts:pts.map(p=>({x:p.x,y:p.y}))};
+    if(txt!=null)m.text=txt;
+    if(type==="polyarc")m.arcs=new Array(m.pts.length).fill(null);
     S.measures.push(m);S.selId=m.id;S.active=-1;S.placing=null;S.adjusting=false;S.cursorImg=null;S.snapPt=null;S.extSegs=[];
     updatePlaceBar();renderList();draw();commit();
-    if(!S.pxPerUnit&&m.type!=="aux"&&computeShape(m).kind!=="angle")toast(L("toastNoScale"));
+    if(!S.pxPerUnit&&m.type!=="aux"&&m.type!=="text"&&computeShape(m).kind!=="angle")toast(L("toastNoScale"));
   }
   function cancelPlacing(){S.placing=null;S.adjusting=false;S.cursorImg=null;S.snapPt=null;S.extSegs=[];updatePlaceBar();draw();}
   // 双击/双击闭合图形时，最后一点往往是"为了收尾"才点的，落在前一点附近，需要剔除。
@@ -1749,16 +1951,42 @@
 
   // ---- select / drag / nudge ----
   function getM(id){return S.measures.find(m=>m.id===id);}
+  // 弧边中点手柄命中（曲边多边形）
+  function arcHandleAt(m,sp){
+    if(m.type!=="polyarc"||!m.arcs)return -1;
+    for(let i=0;i<m.arcs.length;i++){
+      if(!m.arcs[i])continue;
+      const qm=polyarcMid(m,i);if(!qm)continue;
+      if(dist(imgToScreen(qm),sp)<10)return i;
+    }
+    return -1;
+  }
   function selectDown(sp,e){
-    if(S.selId!=null){const m=getM(S.selId);if(m){const v=handleAt(m,sp);if(v>=0){S.active=v;S.drag={kind:"handle",mid:m.id,vtx:v,startSp:sp,orig:m.pts.map(p=>({...p}))};return;}if(hitLabel(m,sp)){S.drag={kind:"label",mid:m.id,startSp:sp,origOff:{...(m.labelOff||{x:0,y:0})}};return;}}}
-    for(let i=S.measures.length-1;i>=0;i--){const m=S.measures[i];const v=handleAt(m,sp);if(v>=0){S.selId=m.id;S.active=v;S.drag={kind:"handle",mid:m.id,vtx:v,startSp:sp,orig:m.pts.map(p=>({...p}))};renderList();draw();return;}if(hitLabel(m,sp)){S.selId=m.id;S.active=-1;S.drag={kind:"label",mid:m.id,startSp:sp,origOff:{...(m.labelOff||{x:0,y:0})}};renderList();draw();return;}if(hitBody(m,sp)){S.selId=m.id;S.active=-1;S.drag={kind:"shape",mid:m.id,startSp:sp,orig:m.pts.map(p=>({...p}))};renderList();draw();return;}}
+    if(S.selId!=null){const m=getM(S.selId);
+      if(m&&!m.locked){
+        const v=handleAt(m,sp);
+        if(v>=0){S.active=v;S.drag={kind:"handle",mid:m.id,vtx:v,startSp:sp,orig:m.pts.map(p=>({...p}))};return;}
+        const ai=arcHandleAt(m,sp);
+        if(ai>=0){S.active=-1;S.drag={kind:"arc",mid:m.id,vtx:ai,startSp:sp};return;}
+        if(hitLabel(m,sp)){S.drag={kind:"label",mid:m.id,startSp:sp,origOff:{...(m.labelOff||{x:0,y:0})}};return;}
+      }}
+    for(let i=S.measures.length-1;i>=0;i--){const m=S.measures[i];
+      if(m.locked){ // 锁定项：仍可点选查看，但不可抓取编辑
+        if(handleAt(m,sp)>=0||hitLabel(m,sp)||hitBody(m,sp)){S.selId=m.id;S.active=-1;renderList();draw();toast(L("toastMeasureLocked"));return;}
+        continue;}
+      const v=handleAt(m,sp);if(v>=0){S.selId=m.id;S.active=v;S.drag={kind:"handle",mid:m.id,vtx:v,startSp:sp,orig:m.pts.map(p=>({...p}))};renderList();draw();return;}
+      const ai=arcHandleAt(m,sp);if(ai>=0){S.selId=m.id;S.active=-1;S.drag={kind:"arc",mid:m.id,vtx:ai,startSp:sp};renderList();draw();return;}
+      if(hitLabel(m,sp)){S.selId=m.id;S.active=-1;S.drag={kind:"label",mid:m.id,startSp:sp,origOff:{...(m.labelOff||{x:0,y:0})}};renderList();draw();return;}
+      if(hitBody(m,sp)){S.selId=m.id;S.active=-1;S.drag={kind:"shape",mid:m.id,startSp:sp,orig:m.pts.map(p=>({...p}))};renderList();draw();return;}}
     S.selId=null;S.active=-1;renderList();draw();
   }
   function dragMove(sp,e){
-    const m=getM(S.drag.mid);if(!m)return;
+    const m=getM(S.drag.mid);if(!m||m.locked)return;
     S.dragMoved=true;
     const dx=(sp.x-S.drag.startSp.x)/S.view.scale,dy=(sp.y-S.drag.startSp.y)/S.view.scale;
     if(S.drag.kind==="label"){m.labelOff={x:S.drag.origOff.x+dx,y:S.drag.origOff.y+dy};draw();return;}
+    if(S.drag.kind==="arc"){ // 弧弯控制点：直接跟随光标（图像坐标）
+      const q=screenToImg(sp);m.arcs[S.drag.vtx]={x:q.x,y:q.y};draw();return;}
     if(S.drag.kind==="handle"){let np={x:S.drag.orig[S.drag.vtx].x+dx,y:S.drag.orig[S.drag.vtx].y+dy};if(CON(e)&&m.pts.length===2){const other=S.drag.orig[1-S.drag.vtx];np=constrain(other,np,m.type);}m.pts[S.drag.vtx]=np;}
     else{m.pts=S.drag.orig.map(p=>({x:p.x+dx,y:p.y+dy}));}
     renderList();draw();
@@ -1768,6 +1996,7 @@
   // 在屏幕上不足 1 个物理像素，按上去像失灵；放大时又会跨好几个像素。
   function nudge(dx,dy){
     if(S.selId==null)return;const m=getM(S.selId);if(!m)return;
+    if(m.locked){toast(L("toastMeasureLocked"));return;}
     const s=1/(S.view.scale||1);
     if(S.active>=0){m.pts[S.active].x+=dx*s;m.pts[S.active].y+=dy*s;}
     else{m.pts.forEach(p=>{p.x+=dx*s;p.y+=dy*s;});}
@@ -1778,8 +2007,21 @@
   // insert / delete vertices for polygon & spline
   function footSeg(P,A,B){const dx=B.x-A.x,dy=B.y-A.y,l2=dx*dx+dy*dy||1e-9;let t=((P.x-A.x)*dx+(P.y-A.y)*dy)/l2;t=Math.max(0,Math.min(1,t));return{x:A.x+dx*t,y:A.y+dy*t};}
   function nearestEdge(m,sp){const P=m.pts.map(imgToScreen);let best=null;const consider=(a,b,insIdx)=>{const d=pointSegDist(sp,P[a],P[b]);if(d<12&&(!best||d<best.d)){best={d,index:insIdx,pt:screenToImg(footSeg(sp,P[a],P[b]))};}};if(m.type==="polygon"){for(let i=0;i<P.length;i++)consider(i,(i+1)%P.length,i+1);}else{for(let i=0;i<P.length-1;i++)consider(i,i+1,i+1);}return best;}
-  function tryInsertVertex(sp){const cands=[];if(S.selId!=null){const s=getM(S.selId);if(s)cands.push(s);}for(let i=S.measures.length-1;i>=0;i--){if(!cands.includes(S.measures[i]))cands.push(S.measures[i]);}for(const m of cands){if(!m||(m.type!=="polygon"&&m.type!=="spline"))continue;const ins=nearestEdge(m,sp);if(ins){m.pts.splice(ins.index,0,ins.pt);S.selId=m.id;S.active=ins.index;renderList();draw();commit();toast(L("toastVertexAdded"));return true;}}return false;}
+  function tryInsertVertex(sp){const cands=[];if(S.selId!=null){const s=getM(S.selId);if(s)cands.push(s);}for(let i=S.measures.length-1;i>=0;i--){if(!cands.includes(S.measures[i]))cands.push(S.measures[i]);}for(const m of cands){if(!m||m.locked||(m.type!=="polygon"&&m.type!=="spline"))continue;const ins=nearestEdge(m,sp);if(ins){m.pts.splice(ins.index,0,ins.pt);S.selId=m.id;S.active=ins.index;renderList();draw();commit();toast(L("toastVertexAdded"));return true;}}return false;}
 
+  // 顶点精确输入：选中 + 抓住顶点（S.active）后按 E 或双击顶点
+  function editVertex(){
+    if(S.selId==null)return;const m=getM(S.selId);if(!m)return;
+    if(m.locked){toast(L("toastMeasureLocked"));return;}
+    if(S.active<0||S.active>=m.pts.length){toast(L("vtxPickFirst"));return;}
+    const cur=m.pts[S.active];
+    const v=prompt(L("vtxPrompt"),Math.round(cur.x)+", "+Math.round(cur.y));
+    if(v==null)return;
+    const parts=v.split(/[,，\s]+/).map(s=>parseFloat(s)).filter(n=>!isNaN(n));
+    if(parts.length<2){toast(L("vtxBad"));return;}
+    m.pts[S.active]={x:parts[0],y:parts[1]};
+    renderList();draw();commit();toast(L("vtxApplied"));
+  }
   window.addEventListener("keydown",e=>{
     if((e.ctrlKey||e.metaKey)&&!e.altKey){const k=e.key.toLowerCase();if(k==="z"&&!e.shiftKey){undo();e.preventDefault();return;}if(k==="y"||(k==="z"&&e.shiftKey)){redo();e.preventDefault();return;}}
     // 相机快捷键（与 Camm 一致：F12 快照 / F2 录像 / F4 放大镜）
@@ -1789,7 +2031,12 @@
     if(document.activeElement&&document.activeElement.tagName==="INPUT")return;
     if(e.key==="Escape"){if($("helpMask").classList.contains("on")){closeHelp();return;}if(S.placing)cancelPlacing();return;}
     if((e.key==="Enter")&&S.placing){finalizePlacing();return;}
-    if((e.key==="Delete"||e.key==="Backspace")&&S.selId!=null){const m=getM(S.selId);if(m&&S.active>=0&&(m.type==="polygon"||m.type==="spline")){const min=m.type==="polygon"?3:2;if(m.pts.length>min){m.pts.splice(S.active,1);S.active=-1;renderList();draw();commit();e.preventDefault();return;}}delMeasure(S.selId);e.preventDefault();return;}
+    if((e.key==="Delete"||e.key==="Backspace")&&S.selId!=null){const m=getM(S.selId);
+      if(m&&m.locked){toast(L("toastMeasureLocked"));e.preventDefault();return;}
+      if(m&&S.active>=0&&(m.type==="polygon"||m.type==="spline")){const min=m.type==="polygon"?3:2;if(m.pts.length>min){m.pts.splice(S.active,1);S.active=-1;renderList();draw();commit();e.preventDefault();return;}}
+      if(m&&S.active>=0&&m.type==="polyarc"&&m.pts.length>3){m.pts.splice(S.active,1);if(m.arcs)m.arcs.splice(S.active,1);S.active=-1;renderList();draw();commit();e.preventDefault();return;}
+      delMeasure(S.selId);e.preventDefault();return;}
+    if((e.key==="e"||e.key==="E")&&S.mode==="select"&&S.selId!=null){editVertex();e.preventDefault();return;}
     if(S.selId!=null&&e.key.startsWith("Arrow")){const step=CON(e)?10:1;const d={ArrowLeft:[-step,0],ArrowRight:[step,0],ArrowUp:[0,-step],ArrowDown:[0,step]}[e.key];if(!d)return;nudge(d[0],d[1]);e.preventDefault();}
   });
   window.addEventListener("keyup",e=>{if(e.key&&e.key.startsWith("Arrow")&&S.nudged){S.nudged=false;commit();}});
@@ -1808,7 +2055,9 @@
   function drawLoupe(sp,touch){
     if(!S.loupe||!hasSrc()||!sp){loupeEl.style.display="none";return;}
     loupeEl.style.display="block";
-    const L=touch?LOUPE_TOUCH:LOUPE_BASE,M=4.5,r=stage.getBoundingClientRect();
+    // 可调参数：半径（0=默认），触屏按比例放大；倍率默认 4.5
+    const base=(S.loupeR&&S.loupeR>0)?Math.round(S.loupeR):LOUPE_BASE;
+    const L=touch?Math.round(base*LOUPE_TOUCH/LOUPE_BASE):base,M=(S.loupeM||4.5),r=stage.getBoundingClientRect();
     LOUPE_L=L;
     loupeEl.style.width=L+"px";loupeEl.style.height=L+"px";
     let lx,ly;
@@ -1872,13 +2121,16 @@
       const el=document.createElement("div");el.className="mitem"+(m.id===S.selId?" sel":"");el.dataset.mid=m.id;
       el.innerHTML=`<div class="top"><div class="name"><span class="swatch" style="background:${effColor}"></span>
         <input class="lbl" value="${esc(m.label)}"></div><span class="badge">${esc(shapeName(m.type))}</span>
+        <button class="lockm${m.locked?" on":""}" title="${esc(L("lockMeasure"))}">${m.locked?"🔒":"🔓"}</button>
         <button class="del" title="${esc(L("delete"))}">✕</button></div>
         <div class="top"><span class="det">${esc(c.detail||"")}</span><span class="len">${esc(c.text)}</span></div>
         <div class="style"><input type="color" class="mcolor" value="${effColor}" title="${esc(L("thisColor"))}">
         <input type="range" class="mw" min="0.5" max="12" step="0.1" value="${fmt(effW)}" title="${esc(L("thisWidth"))}"><input type="number" class="mwbox" min="0.5" max="12" step="0.1" value="${fmt(effW)}" title="${esc(L("thisWidth"))}"><span class="cap">px</span>
         <button class="rst" title="${esc(L("resetGlobalTitle"))}" ${custom?"":"disabled"}>${esc(L("globalBtn"))}</button></div>${m.type==="aux"?`
         <div class="style dashrow"><span class="cap dashlbl">${esc(L("dashGap"))}</span><input type="range" class="dashr" min="1" max="24" step="1" value="${m.dash!=null?m.dash:5}" title="${esc(L("dashGap"))}"><span class="cap dashval">${m.dash!=null?m.dash:5}</span></div>`:""}`;
-      el.addEventListener("click",ev=>{if(ev.target.classList.contains("lbl")||ev.target.classList.contains("del"))return;S.selId=m.id;S.active=-1;if(S.mode!=="select")setMode("select");renderList();draw();});
+      el.addEventListener("click",ev=>{if(ev.target.classList.contains("lbl")||ev.target.classList.contains("del")||ev.target.classList.contains("lockm"))return;S.selId=m.id;S.active=-1;if(S.mode!=="select")setMode("select");renderList();draw();});
+      const lkb=el.querySelector(".lockm");
+      lkb.addEventListener("click",ev=>{ev.stopPropagation();m.locked=!m.locked;if(m.locked)S.active=-1;renderList();draw();commit();});
       const inp=el.querySelector(".lbl");inp.addEventListener("input",()=>{m.label=inp.value;draw();});inp.addEventListener("change",commit);inp.addEventListener("click",ev=>ev.stopPropagation());
       const cin=el.querySelector(".mcolor");cin.addEventListener("input",()=>{m.color=cin.value;el.querySelector(".swatch").style.background=cin.value;el.querySelector(".rst").disabled=false;draw();});cin.addEventListener("change",commit);cin.addEventListener("click",ev=>ev.stopPropagation());
       const win=el.querySelector(".mw");const wb=el.querySelector(".mwbox");
@@ -1890,12 +2142,12 @@
       el.querySelector(".del").addEventListener("click",ev=>{ev.stopPropagation();delMeasure(m.id);});
       wrap.appendChild(el);
     });
-    $("totalLen").textContent=any?fmt(total)+S.unit:"—";
+    $("totalLen").textContent=any?fmtU(total)+S.unit:"—";
   }
   function esc(s){return(s+"").replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
   function delMeasure(id){S.measures=S.measures.filter(m=>m.id!==id);if(S.selId===id){S.selId=null;S.active=-1;}if(S.hoverId===id)S.hoverId=null;renderList();draw();commit();}
 
-  function updateScaleUI(){if(S.pxPerUnit){$("scaleVal").textContent=fmt(S.pxPerUnit)+" px / "+S.unit+((S.mag&&S.mag!==1)?" × "+fmt(S.mag):"");$("scaleVal").className="val";$("scaleRow2").style.display="flex";$("scaleUnit").textContent=fmt(1/S.pxPerUnit)+" "+S.unit;}else{$("scaleVal").textContent=L("notCalibratedShort");$("scaleVal").className="val noscale";$("scaleRow2").style.display="none";}updateLockUI();renderCalibLib();}
+  function updateScaleUI(){if(S.pxPerUnit){$("scaleVal").textContent=fmtU(S.pxPerUnit)+" px / "+S.unit+((S.mag&&S.mag!==1)?" × "+fmtU(S.mag):"");$("scaleVal").className="val";$("scaleRow2").style.display="flex";$("scaleUnit").textContent=fmtU(1/S.pxPerUnit)+" "+S.unit;}else{$("scaleVal").textContent=L("notCalibratedShort");$("scaleVal").className="val noscale";$("scaleRow2").style.display="none";}updateLockUI();renderCalibLib();}
   // ---- 多套标定存取（localStorage，键 cammeasure.calibs）----
   function calibStore(){try{return JSON.parse(localStorage.getItem("cammeasure.calibs")||"[]");}catch(e){return[];}}
   function calibSave(list){try{localStorage.setItem("cammeasure.calibs",JSON.stringify(list));}catch(e){}}
@@ -1905,12 +2157,12 @@
     row.style.display=list.length?"flex":"none";
     sel.innerHTML="";
     list.forEach((c,i)=>{const o=document.createElement("option");o.value=i;
-      o.textContent=c.name+" ("+fmt(c.pxPerUnit)+"px/"+c.unit+(c.mag&&c.mag!==1?" ×"+fmt(c.mag):"")+")";sel.appendChild(o);});
+      o.textContent=c.name+" ("+fmtU(c.pxPerUnit)+"px/"+c.unit+(c.mag&&c.mag!==1?" ×"+fmtU(c.mag):"")+")";sel.appendChild(o);});
   }
   $("calibSaveCur").onclick=()=>{
     if(!S.pxPerUnit){toast(L("toastNoScale"));return;}
     const list=calibStore();
-    const def=(S.calibLine&&S.calibLine.realLen?fmt(S.calibLine.realLen)+S.calibLine.unit:fmt(S.pxPerUnit)+"px");
+    const def=(S.calibLine&&S.calibLine.realLen?fmtU(S.calibLine.realLen)+S.calibLine.unit:fmtU(S.pxPerUnit)+"px");
     const name=prompt(L("calibNamePrompt"),def);
     if(name==null)return;
     if(!name.trim()){toast(L("calibNameEmpty"));return;}
@@ -1949,6 +2201,7 @@
   // ---------- modes ----------
   function setMode(m){
     if(m==="calibrate"&&S.scaleLocked){toast(L("toastScaleLocked"));return;}
+    if(m==="clip"&&CAM.on){freezeFrame();} // 剪贴图需要静态图；抓帧后坐标体系一致
     if(S.placing)cancelPlacing();
     S.mode=m;S.snapPt=null;S.extSegs=[];S.hoverId=null;
     if(m==="calibrate"&&!S.loupe){S.loupe=true;$("btnLoupe").classList.add("active");if(S.mouseSp)drawLoupe(S.mouseSp);}
@@ -2011,7 +2264,7 @@
     btn.addEventListener("click",e=>{e.stopPropagation();var wasOpen=wrap.classList.contains("open");closeMenus();if(!wasOpen)wrap.classList.add("open");});
     menu.querySelectorAll(".menuitem").forEach(it=>{it.addEventListener("click",e=>{e.stopPropagation();var v=it.getAttribute("data-val");setMenuSel(menuId,v);wrap.classList.remove("open");onSelect(v);});});
   }
-  setupMenu("langWrap","langBtn","langMenu",v=>{S.langPref=v;S.lang=resolveLang();applyStaticLang();renderList();updateScaleUI();setMode(S.mode);if(S.mouseSp)updateStatus(S.mouseSp);});
+  setupMenu("langWrap","langBtn","langMenu",v=>{S.langPref=v;S.lang=resolveLang();applyStaticLang();buildDispBox();renderList();updateScaleUI();setMode(S.mode);if(S.mouseSp)updateStatus(S.mouseSp);});
   setupMenu("themeWrap","themeBtn","themeMenu",v=>{S.themePref=v;applyTheme();});
   document.addEventListener("click",closeMenus);
   $("gColor").addEventListener("input",e=>{S.gColor=e.target.value;markSwatches();renderList();draw();});
@@ -2072,7 +2325,7 @@
   $("helpClose").onclick=closeHelp;
   $("helpMask").addEventListener("click",e=>{if(e.target===$("helpMask"))closeHelp();});
   $("dlgInput").addEventListener("keydown",e=>{if(e.key==="Enter")$("dlgOk").click();});
-  $("dlgOk").onclick=()=>{const v=parseFloat($("dlgInput").value),u=$("dlgUnit").value,mag=parseFloat($("dlgMag").value);if(!(v>0)){toast(L("toastLenPositive"));return;}if(!(mag>0)){toast(L("toastMagPositive"));return;}const line=S.pendingCalib||(S.calibLine&&{p1:S.calibLine.p1,p2:S.calibLine.p2});if(!line){closeDlg();return;}S.pxPerUnit=dist(line.p1,line.p2)/(v*mag);S.unit=u;S.mag=mag;S.calibLine={p1:line.p1,p2:line.p2,realLen:v,unit:u,mag:mag};S.scaleLocked=true;closeDlg();updateScaleUI();renderList();draw();commit();toast(L("toastScaleSet",u,fmt(S.pxPerUnit)));setMode("line");};
+  $("dlgOk").onclick=()=>{const v=parseFloat($("dlgInput").value),u=$("dlgUnit").value,mag=parseFloat($("dlgMag").value);if(!(v>0)){toast(L("toastLenPositive"));return;}if(!(mag>0)){toast(L("toastMagPositive"));return;}const line=S.pendingCalib||(S.calibLine&&{p1:S.calibLine.p1,p2:S.calibLine.p2});if(!line){closeDlg();return;}S.pxPerUnit=dist(line.p1,line.p2)/(v*mag);S.unit=u;S.mag=mag;S.calibLine={p1:line.p1,p2:line.p2,realLen:v,unit:u,mag:mag};S.scaleLocked=true;closeDlg();updateScaleUI();renderList();draw();commit();toast(L("toastScaleSet",u,fmtU(S.pxPerUnit)));setMode("line");};
 
   // ---------- image ----------
   function loadImage(dataURL,name,keepView){const img=new Image();const p=new Promise(res=>{img.onload=()=>{S.img=img;S.imgData=dataURL;S.imgName=name||"image";$("hint").style.display="none";if(CAM.on){CAM.on=false;vid.style.display="none";updateCamUI();}if(keepView){draw();updateStatus();}else fitView();res(true);};img.onerror=()=>{toast(L("toastImgFail"));res(false);};});img.src=dataURL;return p;}
@@ -2114,11 +2367,64 @@
   $("btnUndo").onclick=undo;
   $("btnRedo").onclick=redo;
 
+  // ---------- 剪贴图：框选区域（含标注）复制到剪贴板 ----------
+  async function copyCrop(a,b){
+    if(!S.img){toast(L("clipNeedStatic"));return;}
+    const x=Math.round(Math.min(a.x,b.x)),y=Math.round(Math.min(a.y,b.y));
+    const w=Math.round(Math.abs(b.x-a.x)),h=Math.round(Math.abs(b.y-a.y));
+    if(w<4||h<4){toast(L("toastClipSmall"));return;}
+    const oc=document.createElement("canvas");oc.width=w;oc.height=h;
+    const g=oc.getContext("2d");
+    g.drawImage(S.img,-x,-y);
+    const T=p=>({x:p.x-x,y:p.y-y});
+    if(S.calibLine)renderShape(g,{type:"line",pts:[S.calibLine.p1,S.calibLine.p2],color:"#e0a800"},T,{k:1,lw:2.5,fs:14,dash:true,forceText:calibText()});
+    S.measures.forEach(m=>renderShape(g,m,T,{k:1,lw:Math.max(2,(m.lw||S.gLineW)),fs:14}));
+    try{
+      if(!navigator.clipboard||!window.ClipboardItem)throw 0;
+      const blob=await new Promise(res=>{if(oc.toBlob)oc.toBlob(res,"image/png");else res(null);});
+      if(!blob)throw 0;
+      await navigator.clipboard.write([new ClipboardItem({"image/png":blob})]);
+      toast(L("toastClipDone"));
+    }catch(_){
+      // 降级：下载 PNG（老浏览器 / 未授权剪贴板）。toBlob 本身可能抛错（如无 canvas 实现的环境），再兜一层。
+      const name=((S.imgName||"").replace(/\.[^.]+$/,"")||"measure")+"_clip.png";
+      try{
+        if(oc.toBlob)oc.toBlob(bb=>{if(!bb)return;const u=URL.createObjectURL(bb);const el=document.createElement("a");el.href=u;el.download=name;document.body.appendChild(el);el.click();el.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);},"image/png");
+        else{const el=document.createElement("a");el.href=oc.toDataURL("image/png");el.download=name;document.body.appendChild(el);el.click();el.remove();}
+      }catch(__){}
+      toast(L("toastClipFallback"));
+    }
+  }
+
+  // ---------- 显示设置（小数精度 / 放大镜） ----------
+  function markPrecision(){document.querySelectorAll("#precisionRow .mini").forEach(b=>b.classList.toggle("on",b.dataset.v===((S.precision==null)?"a":String(S.precision))));}
+  function syncLoupeUI(){
+    const r=$("loupeR");if(r){r.value=S.loupeR||0;const rv=$("loupeRV");if(rv)rv.textContent=(S.loupeR&&S.loupeR>0)?Math.round(S.loupeR)+"px":L("loupeDefault");}
+    const m=$("loupeM");if(m){m.value=S.loupeM||4.5;const mv=$("loupeMV");if(mv)mv.textContent="×"+fmt(S.loupeM||4.5);}
+  }
+  function buildDispBox(){
+    const row=$("precisionRow");if(row){
+      row.innerHTML="";
+      const mk=(val,txt)=>{const b=document.createElement("button");b.type="button";b.className="mini";b.textContent=txt;b.dataset.v=val;
+        b.addEventListener("click",()=>{S.precision=(val==="a")?null:parseInt(val,10);markPrecision();renderList();draw();updateScaleUI();});
+        row.appendChild(b);};
+      mk("a",L("precisionAuto"));
+      for(let i=0;i<=5;i++)mk(String(i),String(i));
+      markPrecision();
+    }
+    const lr=$("loupeR");
+    if(lr&&!lr._bound){lr._bound=true;lr.addEventListener("input",()=>{S.loupeR=parseFloat(lr.value)||0;syncLoupeUI();if(S.loupe&&S.mouseSp)drawLoupe(S.mouseSp);});}
+    const lm=$("loupeM");
+    if(lm&&!lm._bound){lm._bound=true;lm.addEventListener("input",()=>{S.loupeM=parseFloat(lm.value)||4.5;syncLoupeUI();if(S.loupe&&S.mouseSp)drawLoupe(S.mouseSp);});}
+    syncLoupeUI();
+  }
+  buildDispBox();
+
   // ---------- JSON ----------
-  $("btnExport").onclick=async()=>{if(!await ensureStatic())return;const data={app:"CamMeasure",version:4,exportedAt:new Date().toISOString(),image:{name:S.imgName,width:S.img.width,height:S.img.height,dataURL:S.imgData},unit:S.unit,pxPerUnit:S.pxPerUnit,calibration:S.calibLine,magnification:S.mag,scaleLocked:S.scaleLocked,style:{gColor:S.gColor,gLineW:S.gLineW},langPref:S.langPref,themePref:S.themePref,measures:S.measures.map(m=>({type:m.type,label:m.label,color:m.color,lw:m.lw,dash:m.dash,labelOff:m.labelOff,pts:m.pts}))};const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=(S.imgName.replace(/\.[^.]+$/,"")||"measure")+".measure.json";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast(L("toastExported"));};
+  $("btnExport").onclick=async()=>{if(!await ensureStatic())return;const data={app:"CamMeasure",version:4,exportedAt:new Date().toISOString(),image:{name:S.imgName,width:S.img.width,height:S.img.height,dataURL:S.imgData},unit:S.unit,pxPerUnit:S.pxPerUnit,calibration:S.calibLine,magnification:S.mag,scaleLocked:S.scaleLocked,style:{gColor:S.gColor,gLineW:S.gLineW},precision:S.precision,loupe:{r:S.loupeR||0,m:S.loupeM||4.5},langPref:S.langPref,themePref:S.themePref,measures:S.measures.map(m=>({type:m.type,label:m.label,color:m.color,lw:m.lw,dash:m.dash,labelOff:m.labelOff,locked:m.locked||false,text:m.text!=null?m.text:undefined,arcs:m.arcs||undefined,pts:m.pts}))};const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=(S.imgName.replace(/\.[^.]+$/,"")||"measure")+".measure.json";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast(L("toastExported"));};
   $("btnImport").onclick=()=>$("fileJson").click();
   $("fileJson").onchange=e=>{const f=e.target.files[0];e.target.value="";readJsonFile(f);};
-  function readJsonFile(f){if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const d=JSON.parse(rd.result);S.unit=d.unit||"cm";S.pxPerUnit=d.pxPerUnit??null;S.mag=d.magnification||1;S.calibLine=d.calibration||null;S.scaleLocked=(d.scaleLocked!=null)?!!d.scaleLocked:(d.pxPerUnit!=null);if(d.style){if(d.style.gColor)S.gColor=d.style.gColor;if(d.style.gLineW)S.gLineW=d.style.gLineW;}if(d.langPref==="zh"||d.langPref==="en"||d.langPref==="auto"){S.langPref=d.langPref;S.lang=resolveLang();setMenuSel("langMenu",S.langPref);applyStaticLang();}if(d.themePref==="light"||d.themePref==="dark"||d.themePref==="auto"){S.themePref=d.themePref;setMenuSel("themeMenu",S.themePref);applyTheme();}$("gColor").value=S.gColor;$("gWidth").value=S.gLineW;$("gWidthNum").value=fmt(S.gLineW);markSwatches();S.counters={};S.measures=(d.measures||[]).map((m,i)=>{const type=m.type||"line";S.counters[type]=(S.counters[type]||0)+1;return{id:S.nextId++,type,label:m.label||shapeName(type)+S.counters[type],color:m.color??S.gColor,lw:m.lw??S.gLineW,dash:m.dash??null,labelOff:m.labelOff||null,pts:m.pts||[]};});S.selId=null;S.active=-1;updateScaleUI();renderList();if(d.image&&d.image.dataURL)loadImage(d.image.dataURL,d.image.name);else draw();histReset();toast(L("toastImported"));}catch(err){toast(L("toastImportFail"));}};rd.onerror=()=>toast(L("toastImportFail"));rd.readAsText(f);};
+  function readJsonFile(f){if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const d=JSON.parse(rd.result);S.unit=d.unit||"cm";S.pxPerUnit=d.pxPerUnit??null;S.mag=d.magnification||1;S.calibLine=d.calibration||null;S.scaleLocked=(d.scaleLocked!=null)?!!d.scaleLocked:(d.pxPerUnit!=null);if(d.style){if(d.style.gColor)S.gColor=d.style.gColor;if(d.style.gLineW)S.gLineW=d.style.gLineW;}if(d.precision!=null)S.precision=Math.min(5,Math.max(0,Math.round(+d.precision)||0));else S.precision=null;if(d.loupe){S.loupeR=Math.min(300,Math.max(0,+d.loupe.r||0));S.loupeM=Math.min(12,Math.max(2,+d.loupe.m||4.5));}buildDispBox();if(d.langPref==="zh"||d.langPref==="en"||d.langPref==="auto"){S.langPref=d.langPref;S.lang=resolveLang();setMenuSel("langMenu",S.langPref);applyStaticLang();}if(d.themePref==="light"||d.themePref==="dark"||d.themePref==="auto"){S.themePref=d.themePref;setMenuSel("themeMenu",S.themePref);applyTheme();}$("gColor").value=S.gColor;$("gWidth").value=S.gLineW;$("gWidthNum").value=fmt(S.gLineW);markSwatches();S.counters={};S.measures=(d.measures||[]).map((m,i)=>{const type=m.type||"line";S.counters[type]=(S.counters[type]||0)+1;return{id:S.nextId++,type,label:m.label||shapeName(type)+S.counters[type],color:m.color??S.gColor,lw:m.lw??S.gLineW,dash:m.dash??null,labelOff:m.labelOff||null,locked:!!m.locked,text:m.text||null,arcs:m.arcs||null,pts:m.pts||[]};});S.selId=null;S.active=-1;updateScaleUI();renderList();if(d.image&&d.image.dataURL)loadImage(d.image.dataURL,d.image.name);else draw();histReset();toast(L("toastImported"));}catch(err){toast(L("toastImportFail"));}};rd.onerror=()=>toast(L("toastImportFail"));rd.readAsText(f);};
 
   // ---------- PDF ----------
   $("btnPdf").onclick=async()=>{if(!await ensureStatic())return;if(!window.jspdf){toast(L("toastPdfNoLib"));return;}try{exportPdf();}catch(err){console.error(err);toast(L("toastPdfErr"));}};
@@ -2134,8 +2440,8 @@
       if(c.kind==="length"&&c.value!=null){total+=c.value;any=true;}
       rows.push([m.label||"",shapeName(m.type),c.text||"",c.detail||""]);
     });
-    if(any)rows.push([L("totalLabel"),"",fmt(total)+" "+S.unit,""]);
-    rows.push([L("csvScale"),"",S.pxPerUnit?fmt(S.pxPerUnit)+" px / "+S.unit:L("notCalibratedShort"),""]);
+    if(any)rows.push([L("totalLabel"),"",fmtU(total)+" "+S.unit,""]);
+    rows.push([L("csvScale"),"",S.pxPerUnit?fmtU(S.pxPerUnit)+" px / "+S.unit:L("notCalibratedShort"),""]);
     const csv="\uFEFF"+rows.map(r=>r.map(cell).join(",")).join("\r\n");
     const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
     const a=document.createElement("a");a.href=URL.createObjectURL(blob);
@@ -2240,7 +2546,7 @@
     pdf.setFont("helvetica","bold");pdf.setFontSize(16);pdf.setTextColor(30);pdf.text("Measurement Report",mg,18);
     pdf.setFont("helvetica","normal");pdf.setFontSize(9);pdf.setTextColor(120);
     cjkText(pdf,"Image: "+(S.imgName||"-"),mg,25,9,[120,120,120]);pdf.text("Date: "+new Date().toLocaleString(),mg,30);
-    pdf.text("Scale: "+(S.pxPerUnit?fmt(S.pxPerUnit)+" px = 1 "+S.unit:"not calibrated"),mg,35);
+    pdf.text("Scale: "+(S.pxPerUnit?fmtU(S.pxPerUnit)+" px = 1 "+S.unit:"not calibrated"),mg,35);
     pdf.setDrawColor(200);pdf.line(mg,39,pw-mg,39);
     const sc=Math.min(2,Math.max(1,1400/Math.max(S.img.width,S.img.height)));const pc=renderPhoto(sc);
     const availW=pw-mg*2;let iw=availW,ih=iw*pc.height/pc.width;const maxIh=150;if(ih>maxIh){ih=maxIh;iw=ih*pc.width/pc.height;}
@@ -2255,7 +2561,7 @@
       const val=asc(c.text)+(c.detail?"  ("+asc(c.detail)+")":"");
       cjkText(pdf,String(m.label).slice(0,22),c1,y,9,[40,40,40]);pdf.text(SHAPES[m.type].en,c2,y);cjkText(pdf,val.slice(0,60),c3,y,9,[40,40,40]);y+=7;});
     if(!S.measures.length){pdf.setTextColor(150);pdf.text("(no measurements)",c1,y);y+=7;}
-    if(any){pdf.setFont("helvetica","bold");pdf.setTextColor(20);pdf.text("Total length",c1,y+1);pdf.text(asc(fmt(total)+" "+S.unit),c3,y+1);}
+    if(any){pdf.setFont("helvetica","bold");pdf.setTextColor(20);pdf.text("Total length",c1,y+1);pdf.text(asc(fmtU(total)+" "+S.unit),c3,y+1);}
     pdf.setFontSize(8);pdf.setTextColor(160);pdf.text("Generated by Camera Measure tool",mg,ph-8);
     pdf.save((S.imgName.replace(/\.[^.]+$/,"")||"measure")+"_report.pdf");toast(L("toastPdfDone"));
   }
@@ -2354,7 +2660,7 @@
       if(SHAPES[S.mode]||S.mode==="calibrate"){
         // 放置模式：先检测双击完成多边形/样条
         const now=Date.now();
-        if(S.placing&&(S.placing.type==="polygon"||S.placing.type==="spline")&&T.lastTapSp&&(now-T.lastTapT)<320&&dist2(sp,T.lastTapSp)<DUP_TAP_PX){
+        if(S.placing&&(S.placing.type==="polygon"||S.placing.type==="polyarc"||S.placing.type==="spline")&&T.lastTapSp&&(now-T.lastTapT)<320&&dist2(sp,T.lastTapSp)<DUP_TAP_PX){
           popLastIfDuplicate(S.placing.pts);finalizePlacing();
           T.lastTapT=0;T.lastTapSp=null;T.mode=null;T.tapCandidate=null;return;
         }
@@ -2408,9 +2714,13 @@
     }
     if(T.mode==="pan"&&!T.moved&&T.tapCandidate){
       const sp=T.tapCandidate;const now=Date.now();
-      // 双击检测：选择模式插入顶点
+      // 双击检测：选择模式插入顶点 / 曲边多边形切弧
       if(T.lastTapSp&&(now-T.lastTapT)<320&&dist2(sp,T.lastTapSp)<24){
-        if(S.mode==="select"){tryInsertVertex(sp);}
+        if(S.mode==="select"){
+          const pa=polyarcEdgeAt(sp);
+          if(pa)togglePolyarcEdge(pa.m,pa.index);
+          else tryInsertVertex(sp);
+        }
         T.lastTapT=0;T.lastTapSp=null;T.mode=null;T.tapCandidate=null;return;
       }
       T.lastTapT=now;T.lastTapSp=sp;

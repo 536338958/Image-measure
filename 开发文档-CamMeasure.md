@@ -1,4 +1,4 @@
-# CamMeasure Pro — 开发交接文档（相机模块增补）
+# CamMeasure Pro — 开发交接文档（相机模块 + A 组测量标注增强）
 
 > 本文接续 `Image-measure/CameraMeasure_开发文档.md`，只讲**新增的实时相机层**。原有数据模型、渲染管线、吸附/约束、导出体系全部未动，沿用原约定。所有函数名/字段名与源码一致，可直接搜索定位。
 
@@ -68,9 +68,27 @@
 - 帧坐标 == 视频原生分辨率坐标。**换分辨率（切设备）后旧测量的像素坐标含义会变** —— 沿用你"换图保留测量"的既定政策，用户自负；将来可加提示。
 - jsdom 冒烟测试里 `vid.style.filter` 会被浏览器规范化成 `url("#fxc")`（带引号），断言别抠字符串字面量。
 
-## 5. 冒烟测试
+## 6. A 组功能（测量标注增强，已实现）
 
-`cammeasure_smoketest.js`（42 项，全通过；方法论同你的 80 项套件）：
+对照 Camm 功能差距盘点补齐的 7 项，全部落在单文件内、复用既有管线：
+
+| 功能 | 入口 | 实现 |
+| --- | --- | --- |
+| ① 曲边多边形 | 工具栏 `data-mode="polyarc"` | `pts` 顶点 + `arcs[i]`（边 i 的**弧上参考点**，null=直边）。弧边由 (端点A, 参考点C, 端点B) 三点定弧复用 `arcSamples`，拖顶点弧自动跟随。选中后**双击边**直↔弧切换（`togglePolyarcEdge`），弧中点**圆手柄**拖动调弯（`drag.kind==="arc"` 直接写参考点）。面积=鞋带+弓形修正（`segArea`），周长=Σ弧长/边长。吸附/悬停中点走 `segmentsOf` 的弦 |
+| ② 文字标注 | `data-mode="text"`（click:1） | 放点即 `prompt` 输入文字，存 `m.text`。渲染复用通用 label 管线（`computeShape` 返回 `text:m.text`）→ 自动获得背景框、`_lbl` 缓存、可拖动、CSV/PDF 输出 |
+| ③ 剪贴图 | `data-mode="clip"`（click:2，非测量） | `finalizePlacing` 特判 → `copyCrop`：框选区域 drawImage + renderShape 叠标注 → `navigator.clipboard.write(ClipboardItem)`；不支持/未授权降级下载 PNG（两层 try 兜 toBlob 抛错）。进 clip 模式若在实时视图自动 `freezeFrame` |
+| ④ 顶点精确输入 | 选中+抓住顶点后按 <kbd>E</kbd> 或双击顶点 | `editVertex()`：prompt 输入 "x, y"（图像像素），解析失败 toast `vtxBad` |
+| ⑤ 锁定单条测量 | 列表项 🔒/🔓 按钮 | `m.locked`。锁后：selectDown 拒抓（可选中+toast）、dragMove/nudge/顶点编辑/删点全拒，`paintOverlay` 不画手柄；列表 ✕ 与工具栏删除仍可用（明确操作）。随 `_snap`（measures 整体序列化）自动进撤销栈 |
+| ⑥ 小数精度 0~5 | 侧栏「显示设置」 | `S.precision`（null=自适应）。**fmt 拆成两个**：`fmt`（线宽等 UI 值，原逻辑）与 `fmtU`（测量读数，固定精度不裁尾零）。`U/calibText/computeShape/renderList 合计/CSV/PDF/标定显示`全部走 fmtU；线宽/放大镜倍率显示仍走 fmt |
+| ⑦ 放大镜可调 | 侧栏「显示设置」滑块；Alt+滚轮调倍率 | `S.loupeR`（0=默认 152，触屏按比例放大）、`S.loupeM`（2~12，默认 4.5）。`drawLoupe` 读取；wheel 的 `e.altKey&&S.loupe` 分支调倍率 |
+
+**接线**：`S` 加 `precision/loupeR/loupeM`；工程 JSON v4 追加 `precision`、`loupe{r,m}`、measures 的 `locked/text/arcs`（导入向后兼容，缺省 null）；i18n zh/en 各加 ~25 键（`hint_polyarc/text/clip`、`dispTitle`、`toastClip*`、`vtx*`、`toastMeasureLocked`…）；帮助文档三处补条目。
+
+**注意**：polyarc 的 `m.arcs` 与 `pts` 边数必须同步（删顶点时同步 splice）；clip 的 draft 渲染分支用了 `g.rect()+fill("evenodd")`（Canvas2D 标准用法，PDF 适配器不走该分支——clip 不会成为 measure）。
+
+## 7. 冒烟测试
+
+`cammeasure_smoketest.js`（57 项，全通过；方法论同你的 80 项套件）：
 
 - 相机启动/切换/关闭状态机、getUserMedia 调用、设备菜单、视频布局=fitView 数学
 - **实时视频上直接完成直线测量**、标定含倍率（数学断言 `pxPerUnit=dist/(len*mag)`）
@@ -78,6 +96,7 @@
 - 增强管线：brightness→CSS、增益→url(#fxc)+SVG slope 同步、翻转、重置
 - 冻结→静态、回实时、测量全程保留
 - UVC 能力滑块生成、REC 徽标、菜单关闭相机
+- **A 组 15 项（41~55）**：文字标注创建/内容进列表、曲边三点点画+双击闭合+双击边切弧（⌒ 断言）、锁定切换+抓取被拒 toast、精度行 7 按钮+精度 2 固定两位小数、放大镜大小/倍率滑块、剪贴图 toast+不产生测量项、E 键顶点精确输入+读数变化
 - 变异测试：B（去 mag 除法）、C（去 url filter）被击杀；A（删 freezeFrame 的 CAM.on=false）**行为等价**——loadImage 自带同样守卫（双保险），断言测的是结果而非该行
 
 运行：
@@ -87,12 +106,11 @@ NODE_PATH=/home/huang/.workbuddy/binaries/node/workspace/node_modules \
   node cammeasure_smoketest.js     # CM_FILE=xxx.html 可测变体
 ```
 
-## 6. 可继续的方向
+## 8. 可继续的方向
 
 - 录像合成标注流（`canvas.captureStream` + `ctx.filter`，按需付费 CPU）
 - 快照相册（gallery）面板 + 批量导出 zip
 - 直方图（Camm 的 Histogram；可复用 `frameCanvas` 降采样）
-- 曲边多边形 / 剪贴图 / 文字标注（Camm 有，当前 12 种测量已覆盖主线）
-- 顶点坐标精确输入（Camm 的 Vertex Accurate Locating）
+- B/C/D 组差距：套索选区、区域统计（min/max/均值）、比例尺工具、对齐分布、测量分组显隐等
 
-*与 `CamMeasure.html`（约 2430 行）一致。2026-11-26*
+*与 `CamMeasure.html`（约 2740 行）一致。2026-11-26*

@@ -25,7 +25,7 @@ function mockCtx(canvasEl) {
     clearRect() { rec.calls.push(["clearRect", ...arguments]); },
     drawImage() { rec.calls.push(["drawImage", ...arguments]); },
     save() {}, restore() {},
-    beginPath() {}, closePath() {}, moveTo() {}, lineTo() {}, arc() {}, arcTo() {}, ellipse() {},
+    beginPath() {}, closePath() {}, moveTo() {}, lineTo() {}, arc() {}, arcTo() {}, ellipse() {}, rect() {},
     stroke() { rec.calls.push(["stroke"]); }, fill() { rec.calls.push(["fill"]); },
     fillRect() {}, strokeRect() {},
     fillText() { rec.calls.push(["fillText", ...arguments]); },
@@ -93,7 +93,12 @@ const dom = new JSDOM(html, {
       ondataavailable() {} onstop() {}
     };
     // toBlob / toDataURL stub
+    window.HTMLCanvasElement.prototype.toBlob = function (cb) { cb && cb({ size: 12, type: "image/png" }); };
     window.HTMLCanvasElement.prototype.toDataURL = function () { return "data:image/jpeg;base64,Zm9v"; };
+    // clipboard stub（剪贴图成功路径）
+    try { Object.defineProperty(window.navigator, "clipboard", { value: { write: () => Promise.resolve() }, configurable: true }); }
+    catch (e) { try { window.navigator.clipboard = { write: () => Promise.resolve() }; } catch (e2) {} }
+    window.ClipboardItem = class {};
     window.URL.createObjectURL = () => "blob:fake";
     window.URL.revokeObjectURL = () => {};
     // localStorage：jsdom 自带
@@ -259,5 +264,86 @@ function runTests() {
     w.dispatchEvent(new w.KeyboardEvent("keydown", { key: "F12", bubbles: true, cancelable: true }));
     await sleep(20);
     check("40 F12 无异常（相机已关时仅 toast）", true);
+
+    // ---------- 15. A 组功能：文字 / 曲边多边形 / 锁定 / 精度 / 放大镜 / 剪贴图 / 顶点输入 ----------
+    const items = () => w.document.querySelectorAll("#mlist .mitem").length;
+    const lastItem = () => w.document.querySelector("#mlist .mitem:last-child");
+    const cnt0 = items();
+
+    // 文字标注（prompt stub 返回 "TestCalib"）
+    tool("text").click();
+    fire("mousedown", 600, 150);
+    fire("mouseup", 600, 150);
+    await sleep(20);
+    check("41 文字标注创建", items() === cnt0 + 1, items());
+    check("42 文字内容进列表读数", lastItem() && lastItem().querySelector(".len").textContent === "TestCalib", lastItem() && lastItem().querySelector(".len").textContent);
+
+    // 曲边多边形：三个顶点 + 双击闭合
+    tool("polyarc").click();
+    fire("mousedown", 300, 200); fire("mouseup", 300, 200);
+    fire("mousedown", 500, 300); fire("mouseup", 500, 300);
+    fire("mousedown", 400, 500); fire("mouseup", 400, 500);
+    fire("dblclick", 400, 500);
+    await sleep(20);
+    check("43 曲边多边形闭合创建", items() === cnt0 + 2, items());
+    check("44 明细含边数", lastItem() && lastItem().querySelector(".det").textContent.indexOf("3") >= 0, lastItem() && lastItem().querySelector(".det").textContent);
+
+    // select 模式下双击边线 → 切换为弧边
+    tool("select").click();
+    fire("dblclick", 410, 255);
+    await sleep(20);
+    check("45 双击边切换为弧边（⌒）", lastItem() && lastItem().querySelector(".det").textContent.indexOf("⌒") >= 0, lastItem() && lastItem().querySelector(".det").textContent);
+
+    // 锁定 / 解锁
+    lastItem().querySelector(".lockm").click();
+    await sleep(10);
+    check("46 锁定按钮切换为 on", lastItem().querySelector(".lockm").classList.contains("on"));
+    fire("mousedown", 300, 200);
+    fire("mouseup", 300, 200);
+    await sleep(10);
+    check("47 锁定项抓取被拒（toast 提示）", $("toast").textContent.indexOf("locked") >= 0, $("toast").textContent);
+    lastItem().querySelector(".lockm").click(); // 解锁
+    await sleep(10);
+
+    // 小数精度
+    const pbtns = w.document.querySelectorAll("#precisionRow .mini");
+    check("48 精度行渲染 7 个按钮（自适应+0~5）", pbtns.length === 7, pbtns.length);
+    pbtns[3].click(); // 精度 2
+    await sleep(10);
+    const lineLen = w.document.querySelectorAll("#mlist .mitem")[0].querySelector(".len").textContent;
+    check("49 精度 2 生效（固定两位小数）", /\.\d\d/.test(lineLen), lineLen);
+    pbtns[0].click(); // 恢复自适应
+    await sleep(10);
+
+    // 放大镜可调（半径 / 倍率）
+    $("loupeM").value = "8";
+    $("loupeM").dispatchEvent(new w.Event("input", { bubbles: true }));
+    await sleep(10);
+    check("50 放大镜倍率可调", $("loupeMV").textContent === "×8", $("loupeMV").textContent);
+    $("loupeR").value = "200";
+    $("loupeR").dispatchEvent(new w.Event("input", { bubbles: true }));
+    await sleep(10);
+    check("51 放大镜大小可调", $("loupeRV").textContent === "200px", $("loupeRV").textContent);
+
+    // 剪贴图：框选 → 复制到剪贴板（stub 成功路径），不产生测量项
+    tool("clip").click();
+    await sleep(10);
+    fire("mousedown", 200, 100); fire("mouseup", 200, 100);
+    fire("mousedown", 600, 450); fire("mouseup", 600, 450);
+    await sleep(40);
+    check("52 剪贴图复制成功 toast", $("toast").textContent.indexOf("Copied") >= 0, $("toast").textContent);
+    check("53 剪贴图不产生测量项", items() === cnt0 + 2, items());
+
+    // 顶点精确输入：选中直线抓末端手柄，按 E 输入坐标
+    w.prompt = () => "100, 200";
+    tool("select").click();
+    fire("mousedown", 700, 500);
+    fire("mouseup", 700, 500);
+    await sleep(10);
+    w.dispatchEvent(new w.KeyboardEvent("keydown", { key: "e", bubbles: true, cancelable: true }));
+    await sleep(10);
+    check("54 顶点精确输入生效（toast）", $("toast").textContent.indexOf("updated") >= 0 || $("toast").textContent.indexOf("更新") >= 0, $("toast").textContent);
+    const newLen = w.document.querySelectorAll("#mlist .mitem")[0].querySelector(".len").textContent;
+    check("55 顶点更新后直线读数变化", newLen !== lineLen, newLen + " vs " + lineLen);
   })();
 }
