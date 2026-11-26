@@ -55,7 +55,9 @@ pub fn enable_media_capture(window: &tauri::WebviewWindow) {
         let webview = platform_webview.inner();
 
         // 老版 WebKitGTK 默认关闭；不开 navigator.mediaDevices 就不存在。
-        if let Some(settings) = webview.settings() {
+        // settings() 必须显式走 WebViewExt::settings：gtk::prelude 与 webkit2gtk
+        // 同时导入时，方法语法 webview.settings() 会触发 E0034 多重歧义（Pake 同款处理）。
+        if let Some(settings) = WebViewExt::settings(&webview) {
             settings.set_enable_media_stream(true);
         }
 
