@@ -66,21 +66,22 @@ jobs:
         run: npx tauri icon src-tauri/icons/app-icon.png
         working-directory: desktop
 
-      # 诊断探针：把真实报错写进 job summary（匿名可读），便于定位构建失败原因
-      - name: Probe build (diagnostics to summary)
+      # 诊断探针 v2：把真实报错用 ::error:: 注解打出来（匿名 API 可读）
+      - name: Probe build (diagnostics)
         if: matrix.platform == 'ubuntu-22.04'
         continue-on-error: true
         run: |
-          {
-            echo '## cargo metadata probe'
-            echo '```'
-            (cd desktop/src-tauri && cargo metadata --no-deps --format-version 1 2>&1 | tail -40)
-            echo '```'
-            echo '## tauri build probe (max 300s)'
-            echo '```'
-            (cd desktop && timeout 300 npx tauri build 2>&1 | tail -120)
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          set +e
+          cd desktop
+          OUT=$(timeout 300 npx tauri build 2>&1); CODE=$?
+          printf '%s\n' "$OUT" | tail -50
+          MSG=$(printf '%s' "$OUT" | grep -iE 'error|failed|missing|not found|panic|denied' | tail -10 | tr '\n' ' ; ' | cut -c1-900)
+          echo "::error::tauri build probe (cwd=desktop, exit=$CODE) $MSG"
+          cd ..
+          OUT2=$(npm run tauri build 2>&1); CODE2=$?
+          MSG2=$(printf '%s' "$OUT2" | grep -iE 'error|missing|enoent|not found' | tail -6 | tr '\n' ' ; ' | cut -c1-400)
+          echo "::error::npm-from-repo-root probe (exit=$CODE2) $MSG2"
+          exit 0
 
       - uses: tauri-apps/tauri-action@v0
         env:
