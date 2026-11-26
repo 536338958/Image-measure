@@ -1,0 +1,27 @@
+[package]
+name = "cammeasure"
+version = "1.0.0"
+description = "Cross-platform camera measure tool"
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "cammeasure_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# 仅 Linux：直接操作 WebKitGTK 启用 getUserMedia（见 src/linux_media.rs）
+[target.'cfg(target_os = "linux")'.dependencies]
+webkit2gtk = { version = "0.18", features = ["v2_40"] }
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1

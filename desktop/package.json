@@ -1,0 +1,15 @@
+{
+  "name": "cammeasure-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CamMeasure Pro desktop shell (Tauri v2)",
+  "scripts": {
+    "copy-ui": "node copy-ui.js",
+    "dev": "npm run copy-ui && tauri dev",
+    "build": "npm run copy-ui && tauri build",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

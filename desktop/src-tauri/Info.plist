@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>NSCameraUsageDescription</key>
+  <string>CamMeasure 需要访问相机进行实时测量、快照与录像。Camera access is required for live measuring, snapshots and recording.</string>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>CamMeasure 需要访问麦克风以便录像时记录声音。Microphone access is required to record audio with video.</string>
+</dict>
+</plist>

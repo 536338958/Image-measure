@@ -1,0 +1,79 @@
+# CamMeasure 桌面版发布流水线（仓库根）。
+# 推 desktop-ci 分支或打 v* tag 触发，产出：
+#   Windows: .msi + .exe(NSIS)
+#   macOS:   .dmg / .app（aarch64 + x86_64 两个架构）
+#   Linux:   .AppImage + .deb + .rpm
+# 全部作为 Draft Release 附件上传，到 Releases 页手动 Publish 即可分发。
+name: "Desktop Release"
+
+on:
+  push:
+    branches:
+      - desktop-ci
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  publish-tauri:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: "macos-latest"
+            args: "--target aarch64-apple-darwin"
+          - platform: "macos-latest"
+            args: "--target x86_64-apple-darwin"
+          - platform: "ubuntu-22.04"
+            args: ""
+          - platform: "windows-latest"
+            args: ""
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            desktop/src-tauri -> target
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Tauri CLI
+        run: npm install
+        working-directory: desktop
+
+      # 从单源 1024 图标生成 icns/ico/png 全套（首次或图标变更时自动重生成）
+      - name: Generate icon set
+        run: npx tauri icon src-tauri/icons/app-icon.png
+        working-directory: desktop
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: desktop
+          tagName: ${{ github.ref_name }}
+          releaseName: "CamMeasure v__VERSION__"
+          releaseBody: "跨平台相机测量工具：实时测量 / 拍照精修 / 色彩增强 / 显微标定。See the assets to download and install."
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
