@@ -77,3 +77,17 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+
+      # 仅在失败时触发：cargo check 的错误原文打进注解（匿名 API 可读）
+      - name: Diagnose build failure
+        if: failure() && matrix.platform == 'ubuntu-22.04'
+        continue-on-error: true
+        run: |
+          set +e
+          cd desktop/src-tauri
+          OUT=$(timeout 400 cargo check 2>&1); CODE=$?
+          printf '%s\n' "$OUT" | grep -E '^error' -A10 | head -200
+          MSG=$(printf '%s' "$OUT" | grep -E '^error' -A10 | head -80 | tr '\n' ' ; ' | cut -c1-1600)
+          if [ -z "$MSG" ]; then MSG=$(printf '%s' "$OUT" | tail -50 | tr '\n' ' ; ' | cut -c1-1600); fi
+          echo "::error::diagnose exit=$CODE :: $MSG"
+          exit 0
